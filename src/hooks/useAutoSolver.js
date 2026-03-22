@@ -102,13 +102,18 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     if (moveQueueRef.current.length > 0) {
       const speed = speedRef.current
       if (speed >= 10) {
-        // At 10x+, execute entire move queue instantly — no animation delay
+        // At 10x+, execute entire move queue instantly — apply all moves
+        // to the state ref but only trigger one React update at the end
+        let state = stateRef.current
         while (moveQueueRef.current.length > 0) {
           const opcode = moveQueueRef.current.shift()
           const action = OPCODE_ACTIONS[opcode]
-          if (action && stateRef.current) {
-            updateState(action(stateRef.current))
+          if (action && state) {
+            state = action(state)
           }
+        }
+        if (state !== stateRef.current) {
+          updateState(state)
         }
       } else {
         moveTimerRef.current += deltaMs
