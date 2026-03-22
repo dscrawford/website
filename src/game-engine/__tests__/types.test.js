@@ -71,21 +71,20 @@ describe('types — piece shapes', () => {
   })
 })
 
-describe('types — 7-bag randomizer', () => {
-  it('returns an array of 7 piece types', () => {
+describe('types — 14-bag randomizer', () => {
+  it('returns an array of 14 piece types', () => {
     const bag = createBag()
-    expect(bag).toHaveLength(7)
+    expect(bag).toHaveLength(14)
   })
 
-  it('contains exactly one of each piece type', () => {
+  it('contains exactly two of each piece type', () => {
     const bag = createBag()
     const sorted = [...bag].sort((a, b) => a - b)
-    expect(sorted).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(sorted).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7])
   })
 
   it('returns shuffled order (not always sorted)', () => {
-    // Run multiple bags — at least one should differ from sorted
-    const sorted = [1, 2, 3, 4, 5, 6, 7]
+    const sorted = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7]
     let foundDifferent = false
     for (let i = 0; i < 20; i++) {
       const bag = createBag()
@@ -100,8 +99,8 @@ describe('types — 7-bag randomizer', () => {
   it('different calls produce independent bags', () => {
     const bag1 = createBag()
     const bag2 = createBag()
-    // Both should be valid bags (contain all 7 types)
-    expect([...bag1].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7])
-    expect([...bag2].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7])
+    // Both should be valid bags (contain all 7 types, twice each)
+    expect([...bag1].sort((a, b) => a - b)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7])
+    expect([...bag2].sort((a, b) => a - b)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7])
   })
 })

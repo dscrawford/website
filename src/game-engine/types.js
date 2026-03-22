@@ -80,9 +80,11 @@ export const PIECE_SHAPES = Object.freeze({
   ],
 })
 
-// 7-bag randomizer: returns a shuffled array of all 7 piece types
+// 14-bag randomizer: two copies of all 7 piece types, shuffled together.
+// Guarantees each piece appears exactly twice per bag, preventing
+// long droughts or floods of any single piece.
 export function createBag() {
-  const bag = [1, 2, 3, 4, 5, 6, 7]
+  const bag = [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7]
   // Fisher-Yates shuffle
   for (let i = bag.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))

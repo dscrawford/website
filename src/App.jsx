@@ -9,7 +9,7 @@ function App() {
   const [cardFocused, setCardFocused] = useState(true)
   const [gameState, setGameState] = useState(null)
   const [aiEnabled, setAiEnabled] = useState(true)
-  const [speedMultiplier, setSpeedMultiplier] = useState(1)
+  const [speedMultiplier, setSpeedMultiplier] = useState(16)
   const [uiHidden, setUiHidden] = useState(false)
 
   const handleStateChange = useCallback((state) => {
