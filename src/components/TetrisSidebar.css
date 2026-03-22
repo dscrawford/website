@@ -87,3 +87,64 @@
   -webkit-appearance: none;
   margin: 0;
 }
+
+@media (max-width: 768px) {
+  .tetris-sidebar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px 8px 0 0;
+    min-width: unset;
+  }
+
+  .sidebar-section {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+  }
+
+  .sidebar-value {
+    font-size: 14px;
+  }
+
+  .piece-preview-canvas {
+    width: 40px !important;
+    height: 40px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .tetris-sidebar {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .sidebar-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+
+  .sidebar-value {
+    font-size: 12px;
+  }
+
+  .ai-toggle {
+    font-size: 11px;
+    padding: 3px 10px;
+  }
+
+  .speed-input {
+    width: 40px;
+    font-size: 12px;
+  }
+}
