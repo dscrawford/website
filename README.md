@@ -54,12 +54,29 @@ The game engine is pure JavaScript with an immutable state pattern (`state → n
 
 ## AI Solver
 
-The Rust solver uses a heuristic evaluation strategy:
-- Keeps the rightmost column open for I-piece Tetris clears
-- Evaluates placements by aggregate height, holes, bumpiness, and line clears
-- Exponential danger penalty when stack exceeds 60% of board height
-- Holds I-pieces until the board is ready for a 4-line clear
+The Rust solver uses a two-phase El-Tetris heuristic strategy with a configurable target fill ratio (default 75%):
+
+**Stacking phase** (below target): builds up the board cleanly, holding I-pieces for later.
+**Scoring phase** (at/above target): uses I-pieces for 4-line Tetris clears.
+
+Evaluation features (El-Tetris weights):
+- Landing height, row/column transitions, holes, well sums, rows removed
+- Rows-removed weight smoothly interpolated via sigmoid urgency curve
+- Height-gap penalty pushes the board toward the target fill ratio
+- Quadratic danger penalty when max column height exceeds 85% of board
 
 Controls in the sidebar:
 - **AI MODE** toggle (green ON / red OFF)
-- **SPEED** slider (1x–128x) — affects both drop speed and AI move speed
+- **SPEED** input (1x–999x) — at 10x+, AI moves execute instantly per frame
+
+## Production Build
+
+The Nix flake includes a Docker image output:
+
+```bash
+nix build .#dockerImage       # produces ./result (OCI tarball)
+docker load < result           # loads dcraw-website:latest
+docker run -p 8080:80 dcraw-website:latest
+```
+
+The image uses nginx to serve the static Vite build with proper WASM MIME types, SPA fallback, and gzip compression.
