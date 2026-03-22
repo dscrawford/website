@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1774161498233" clover="3.2.0">
+  <project timestamp="1774161498233" name="All files">
+    <metrics statements="193" coveredstatements="188" conditionals="83" coveredconditionals="64" methods="37" coveredmethods="37" elements="313" coveredelements="289" complexity="0" loc="193" ncloc="193" packages="1" files="5" classes="5"/>
+    <file name="board.js" path="/home/daniel/Documents/DCrawWebsite/src/game-engine/board.js">
+      <metrics statements="40" coveredstatements="40" conditionals="25" coveredconditionals="24" methods="7" coveredmethods="7"/>
+      <line num="4" count="69" type="stmt"/>
+      <line num="12" count="6731" type="cond" truecount="2" falsecount="0"/>
+      <line num="13" count="6730" type="cond" truecount="5" falsecount="0"/>
+      <line num="14" count="6612" type="stmt"/>
+      <line num="18" count="263" type="stmt"/>
+      <line num="19" count="263" type="stmt"/>
+      <line num="20" count="263" type="stmt"/>
+      <line num="24" count="1533" type="stmt"/>
+      <line num="25" count="1533" type="stmt"/>
+      <line num="26" count="5915" type="stmt"/>
+      <line num="27" count="5915" type="stmt"/>
+      <line num="28" count="5915" type="stmt"/>
+      <line num="29" count="5915" type="cond" truecount="4" falsecount="0"/>
+      <line num="31" count="1401" type="stmt"/>
+      <line num="35" count="5" type="stmt"/>
+      <line num="36" count="5" type="stmt"/>
+      <line num="37" count="5" type="stmt"/>
+      <line num="38" count="20" type="stmt"/>
+      <line num="39" count="20" type="stmt"/>
+      <line num="40" count="20" type="cond" truecount="5" falsecount="1"/>
+      <line num="41" count="20" type="stmt"/>
+      <line num="44" count="5" type="stmt"/>
+      <line num="48" count="163" type="stmt"/>
+      <line num="49" count="163" type="stmt"/>
+      <line num="50" count="218" type="cond" truecount="2" falsecount="0"/>
+      <line num="52" count="5" type="stmt"/>
+      <line num="56" count="8" type="stmt"/>
+      <line num="57" count="8" type="stmt"/>
+      <line num="58" count="160" type="cond" truecount="2" falsecount="0"/>
+      <line num="61" count="8" type="cond" truecount="2" falsecount="0"/>
+      <line num="62" count="5" type="stmt"/>
+      <line num="65" count="3" type="stmt"/>
+      <line num="66" count="3" type="stmt"/>
+      <line num="68" count="3" type="stmt"/>
+      <line num="69" count="60" type="cond" truecount="2" falsecount="0"/>
+      <line num="70" count="56" type="stmt"/>
+      <line num="71" count="56" type="stmt"/>
+      <line num="72" count="56" type="stmt"/>
+      <line num="73" count="56" type="stmt"/>
+      <line num="77" count="3" type="stmt"/>
+    </file>
+    <file name="engine.js" path="/home/daniel/Documents/DCrawWebsite/src/game-engine/engine.js">
+      <metrics statements="104" coveredstatements="100" conditionals="48" coveredconditionals="33" methods="18" coveredmethods="18"/>
+      <line num="6" count="1" type="stmt"/>
+      <line num="9" count="76" type="stmt"/>
+      <line num="10" count="76" type="stmt"/>
+      <line num="11" count="42" type="stmt"/>
+      <line num="13" count="76" type="stmt"/>
+      <line num="18" count="42" type="stmt"/>
+      <line num="19" count="168" type="stmt"/>
+      <line num="20" count="42" type="stmt"/>
+      <line num="21" count="42" type="stmt"/>
+      <line num="22" count="42" type="stmt"/>
+      <line num="26" count="87" type="stmt"/>
+      <line num="27" count="87" type="stmt"/>
+      <line num="28" count="1433" type="stmt"/>
+      <line num="29" count="1433" type="cond" truecount="2" falsecount="0"/>
+      <line num="30" count="87" type="stmt"/>
+      <line num="32" count="1346" type="stmt"/>
+      <line num="34" count="87" type="stmt"/>
+      <line num="38" count="87" type="cond" truecount="1" falsecount="1"/>
+      <line num="39" count="87" type="stmt"/>
+      <line num="56" count="88" type="stmt"/>
+      <line num="60" count="53" type="stmt"/>
+      <line num="64" count="34" type="stmt"/>
+      <line num="65" count="34" type="stmt"/>
+      <line num="66" count="34" type="stmt"/>
+      <line num="67" count="34" type="stmt"/>
+      <line num="68" count="34" type="stmt"/>
+      <line num="69" count="34" type="stmt"/>
+      <line num="70" count="34" type="stmt"/>
+      <line num="74" count="23" type="cond" truecount="1" falsecount="1"/>
+      <line num="75" count="23" type="stmt"/>
+      <line num="76" count="23" type="stmt"/>
+      <line num="77" count="23" type="cond" truecount="2" falsecount="0"/>
+      <line num="78" count="5" type="stmt"/>
+      <line num="82" count="22" type="cond" truecount="1" falsecount="1"/>
+      <line num="83" count="22" type="stmt"/>
+      <line num="84" count="22" type="stmt"/>
+      <line num="85" count="22" type="cond" truecount="2" falsecount="0"/>
+      <line num="86" count="5" type="stmt"/>
+      <line num="90" count="2" type="cond" truecount="1" falsecount="1"/>
+      <line num="91" count="2" type="stmt"/>
+      <line num="92" count="2" type="stmt"/>
+      <line num="93" count="2" type="cond" truecount="1" falsecount="1"/>
+      <line num="94" count="2" type="stmt"/>
+      <line num="98" count="1" type="cond" truecount="1" falsecount="1"/>
+      <line num="99" count="1" type="stmt"/>
+      <line num="100" count="1" type="stmt"/>
+      <line num="101" count="1" type="cond" truecount="1" falsecount="1"/>
+      <line num="102" count="1" type="stmt"/>
+      <line num="106" count="4" type="stmt"/>
+      <line num="107" count="4" type="stmt"/>
+      <line num="108" count="4" type="cond" truecount="1" falsecount="1"/>
+      <line num="110" count="4" type="stmt"/>
+      <line num="111" count="4" type="stmt"/>
+      <line num="112" count="4" type="stmt"/>
+      <line num="113" count="4" type="stmt"/>
+      <line num="115" count="4" type="stmt"/>
+      <line num="119" count="3" type="cond" truecount="1" falsecount="1"/>
+      <line num="120" count="3" type="stmt"/>
+      <line num="121" count="3" type="stmt"/>
+      <line num="122" count="3" type="cond" truecount="1" falsecount="1"/>
+      <line num="124" count="0" type="stmt"/>
+      <line num="126" count="3" type="stmt"/>
+      <line num="127" count="3" type="stmt"/>
+      <line num="131" count="3" type="cond" truecount="1" falsecount="1"/>
+      <line num="132" count="3" type="stmt"/>
+      <line num="133" count="3" type="stmt"/>
+      <line num="134" count="3" type="stmt"/>
+      <line num="135" count="3" type="stmt"/>
+      <line num="137" count="3" type="stmt"/>
+      <line num="138" count="3" type="stmt"/>
+      <line num="142" count="5" type="cond" truecount="4" falsecount="0"/>
+      <line num="143" count="4" type="stmt"/>
+      <line num="144" count="4" type="stmt"/>
+      <line num="146" count="4" type="cond" truecount="1" falsecount="1"/>
+      <line num="148" count="4" type="stmt"/>
+      <line num="149" count="4" type="stmt"/>
+      <line num="150" count="4" type="stmt"/>
+      <line num="151" count="4" type="stmt"/>
+      <line num="155" count="0" type="stmt"/>
+      <line num="156" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="157" count="0" type="stmt"/>
+      <line num="161" count="27" type="cond" truecount="2" falsecount="0"/>
+      <line num="162" count="26" type="stmt"/>
+      <line num="163" count="26" type="stmt"/>
+      <line num="164" count="26" type="cond" truecount="2" falsecount="0"/>
+      <line num="165" count="1" type="stmt"/>
+      <line num="167" count="25" type="stmt"/>
+      <line num="171" count="5" type="stmt"/>
+      <line num="172" count="5" type="cond" truecount="2" falsecount="0"/>
+      <line num="174" count="4" type="stmt"/>
+      <line num="175" count="4" type="stmt"/>
+      <line num="176" count="4" type="stmt"/>
+      <line num="179" count="4" type="stmt"/>
+      <line num="181" count="4" type="stmt"/>
+      <line num="182" count="80" type="stmt"/>
+      <line num="183" count="800" type="stmt"/>
+      <line num="184" count="800" type="cond" truecount="3" falsecount="1"/>
+      <line num="185" count="800" type="stmt"/>
+      <line num="186" count="800" type="cond" truecount="2" falsecount="0"/>
+      <line num="187" count="4" type="stmt"/>
+      <line num="193" count="4" type="stmt"/>
+      <line num="195" count="4" type="stmt"/>
+      <line num="196" count="4" type="stmt"/>
+      <line num="198" count="4" type="stmt"/>
+    </file>
+    <file name="pieces.js" path="/home/daniel/Documents/DCrawWebsite/src/game-engine/pieces.js">
+      <metrics statements="19" coveredstatements="18" conditionals="8" coveredconditionals="5" methods="4" coveredmethods="4"/>
+      <line num="6" count="2" type="stmt"/>
+      <line num="14" count="2" type="stmt"/>
+      <line num="22" count="2" type="stmt"/>
+      <line num="29" count="2" type="stmt"/>
+      <line num="37" count="12" type="stmt"/>
+      <line num="38" count="12" type="cond" truecount="1" falsecount="1"/>
+      <line num="39" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="41" count="12" type="cond" truecount="2" falsecount="0"/>
+      <line num="45" count="12" type="stmt"/>
+      <line num="46" count="12" type="stmt"/>
+      <line num="48" count="12" type="stmt"/>
+      <line num="49" count="16" type="stmt"/>
+      <line num="55" count="16" type="cond" truecount="2" falsecount="0"/>
+      <line num="56" count="11" type="stmt"/>
+      <line num="59" count="1" type="stmt"/>
+      <line num="63" count="8" type="stmt"/>
+      <line num="64" count="8" type="stmt"/>
+      <line num="68" count="4" type="stmt"/>
+      <line num="69" count="4" type="stmt"/>
+    </file>
+    <file name="scoring.js" path="/home/daniel/Documents/DCrawWebsite/src/game-engine/scoring.js">
+      <metrics statements="16" coveredstatements="16" conditionals="2" coveredconditionals="2" methods="7" coveredmethods="7"/>
+      <line num="2" count="2" type="stmt"/>
+      <line num="5" count="2" type="stmt"/>
+      <line num="14" count="2" type="stmt"/>
+      <line num="15" count="2" type="stmt"/>
+      <line num="18" count="12" type="cond" truecount="2" falsecount="0"/>
+      <line num="19" count="11" type="stmt"/>
+      <line num="20" count="11" type="stmt"/>
+      <line num="24" count="9" type="stmt"/>
+      <line num="28" count="4" type="stmt"/>
+      <line num="32" count="40" type="stmt"/>
+      <line num="36" count="5" type="stmt"/>
+      <line num="37" count="5" type="stmt"/>
+      <line num="38" count="5" type="stmt"/>
+      <line num="39" count="5" type="stmt"/>
+      <line num="47" count="4" type="stmt"/>
+      <line num="51" count="4" type="stmt"/>
+    </file>
+    <file name="types.js" path="/home/daniel/Documents/DCrawWebsite/src/game-engine/types.js">
+      <metrics statements="14" coveredstatements="14" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+      <line num="2" count="4" type="stmt"/>
+      <line num="4" count="4" type="stmt"/>
+      <line num="14" count="4" type="stmt"/>
+      <line num="25" count="4" type="stmt"/>
+      <line num="26" count="4" type="stmt"/>
+      <line num="27" count="4" type="stmt"/>
+      <line num="31" count="4" type="stmt"/>
+      <line num="85" count="47" type="stmt"/>
+      <line num="87" count="47" type="stmt"/>
+      <line num="88" count="282" type="stmt"/>
+      <line num="89" count="282" type="stmt"/>
+      <line num="90" count="282" type="stmt"/>
+      <line num="91" count="282" type="stmt"/>
+      <line num="93" count="47" type="stmt"/>
+    </file>
+  </project>
+</coverage>

@@ -1,6 +1,6 @@
 # Reference Design
 
-Save the Gemini-generated reference image as `docs/reference.png`.
+Save the Gemini-generated reference image as `docs/reference.jpg`.
 
 The target design features:
 - Dark background with a full-screen Tetris game board (~40x80 grid)
