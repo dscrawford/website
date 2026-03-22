@@ -43,7 +43,18 @@ function PiecePreview({ pieceType, size = 80 }) {
   return <canvas ref={canvasRef} width={size} height={size} className="piece-preview-canvas" />
 }
 
-export default function TetrisSidebar({ nextQueue, hold, score, level }) {
+const stopPropagation = (e) => e.stopPropagation()
+
+export default function TetrisSidebar({
+  nextQueue,
+  hold,
+  score,
+  level,
+  aiEnabled,
+  onAiToggle,
+  speedMultiplier,
+  onSpeedChange,
+}) {
   return (
     <aside className="tetris-sidebar">
       <div className="sidebar-section">
@@ -63,6 +74,38 @@ export default function TetrisSidebar({ nextQueue, hold, score, level }) {
       <div className="sidebar-section">
         <div className="sidebar-label">LEVEL:</div>
         <div className="sidebar-value">{level ?? 0}</div>
+      </div>
+      <div
+        className="sidebar-section"
+        onClick={stopPropagation}
+        onMouseDown={stopPropagation}
+        onPointerDown={stopPropagation}
+      >
+        <div className="sidebar-label">AI MODE:</div>
+        <button
+          className={`ai-toggle ${aiEnabled ? 'ai-on' : 'ai-off'}`}
+          onClick={() => onAiToggle?.(!aiEnabled)}
+        >
+          {aiEnabled ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      <div
+        className="sidebar-section"
+        onClick={stopPropagation}
+        onMouseDown={stopPropagation}
+        onPointerDown={stopPropagation}
+      >
+        <div className="sidebar-label">SPEED:</div>
+        <input
+          type="range"
+          min={1}
+          max={128}
+          step={1}
+          value={speedMultiplier}
+          onChange={(e) => onSpeedChange?.(Number(e.target.value))}
+          className="speed-slider"
+        />
+        <div className="sidebar-value">{speedMultiplier}x</div>
       </div>
     </aside>
   )

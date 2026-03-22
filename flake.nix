@@ -38,6 +38,9 @@
             pkgs.nodePackages.typescript-language-server
             pkgs.nodePackages.typescript
 
+            # Testing
+            pkgs.chromium
+
             # Utilities
             pkgs.pkg-config
             pkgs.openssl

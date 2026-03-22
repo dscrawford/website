@@ -12,6 +12,7 @@ pub struct Weights {
     pub lines_cleared_tetris: f64,
     pub open_col_blockage: f64,
     pub max_height: f64,
+    pub height_danger: f64,
 }
 
 impl Default for Weights {
@@ -19,13 +20,14 @@ impl Default for Weights {
         Weights {
             open_col_clear: 1000.0,
             tetris_ready: 500.0,
-            aggregate_height: -1.0,
-            holes: -5.0,
-            bumpiness: -1.5,
-            lines_cleared_single: 3.0,
-            lines_cleared_tetris: 20.0,
+            aggregate_height: -4.0,
+            holes: -8.0,
+            bumpiness: -3.0,
+            lines_cleared_single: 8.0,
+            lines_cleared_tetris: 40.0,
             open_col_blockage: -50.0,
-            max_height: -2.0,
+            max_height: -5.0,
+            height_danger: -20.0,
         }
     }
 }
@@ -75,7 +77,15 @@ pub fn evaluate(
     score += open_col_height as f64 * weights.open_col_blockage;
 
     // Max height penalty
-    score += board::max_height(cells, width, height) as f64 * weights.max_height;
+    let mh = board::max_height(cells, width, height);
+    score += mh as f64 * weights.max_height;
+
+    // Height danger: exponential penalty when stack exceeds 60% of board height
+    let danger_threshold = (height * 3 / 5) as f64;
+    if mh as f64 > danger_threshold {
+        let over = mh as f64 - danger_threshold;
+        score += over * over * weights.height_danger;
+    }
 
     score
 }
@@ -207,6 +217,33 @@ mod tests {
         }
         let readiness = tetris_readiness(&cells, 10, 20, 9);
         assert!((readiness - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn height_danger_penalty_kicks_in() {
+        let mut cells_low = empty_board(10, 20);
+        let mut cells_high = empty_board(10, 20);
+        let weights = Weights::default();
+
+        // Low stack: col 0 height 5 (25% of board) — no danger
+        for r in 15..20 {
+            set_cell(&mut cells_low, 10, r, 0, I);
+        }
+
+        // High stack: col 0 height 15 (75% of board) — above 60% threshold
+        for r in 5..20 {
+            set_cell(&mut cells_high, 10, r, 0, I);
+        }
+
+        let score_low = evaluate(&cells_low, 10, 20, 0, 9, &weights);
+        let score_high = evaluate(&cells_high, 10, 20, 0, 9, &weights);
+
+        // High stack should be penalized much more severely
+        assert!(score_low > score_high, "High stack ({}) should score worse than low stack ({})", score_high, score_low);
+
+        // The difference should be significant due to quadratic danger penalty
+        let diff = score_low - score_high;
+        assert!(diff > 100.0, "Danger penalty should be significant, diff={}", diff);
     }
 
     #[test]

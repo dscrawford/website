@@ -9,7 +9,7 @@ export default function CenterCard({ onFocusChange }) {
       tabIndex={-1}
     >
       <h1>DANIEL<br />CRAWFORD</h1>
-      <a href="/resume.pdf" className="resume-btn">
+      <a href="/data/resume.pdf" className="resume-btn" target="_blank" rel="noopener noreferrer">
         <span className="resume-icon">📄</span>
         RESUME (PDF)
       </a>

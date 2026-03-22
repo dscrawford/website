@@ -20,7 +20,15 @@ const OPCODE_CCW = 3
 const OPCODE_HARD_DROP = 4
 const OPCODE_HOLD = 5
 
-const MOVE_INTERVAL_MS = 60 // ms between each AI move (animation speed)
+// Per-opcode intervals: horizontal moves are fast, rotations/drops are visible
+const MOVE_INTERVALS = {
+  [OPCODE_LEFT]: 15,
+  [OPCODE_RIGHT]: 15,
+  [OPCODE_CW]: 50,
+  [OPCODE_CCW]: 50,
+  [OPCODE_HARD_DROP]: 40,
+  [OPCODE_HOLD]: 30,
+}
 
 const OPCODE_ACTIONS = {
   [OPCODE_LEFT]: moveLeft,
@@ -31,13 +39,15 @@ const OPCODE_ACTIONS = {
   [OPCODE_HOLD]: holdPiece,
 }
 
-export function useAutoSolver(stateRef, updateState, enabled) {
+export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 1) {
   const moveQueueRef = useRef([])
   const readyRef = useRef(false)
   const lastPieceRef = useRef(null)
   const moveTimerRef = useRef(0)
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
+  const speedRef = useRef(speedMultiplier)
+  speedRef.current = speedMultiplier
 
   // Initialize WASM solver on mount (always, regardless of enabled)
   useEffect(() => {
@@ -86,11 +96,14 @@ export function useAutoSolver(stateRef, updateState, enabled) {
       }
     }
 
-    // Execute moves at a steady interval
+    // Execute moves at per-opcode intervals
     if (moveQueueRef.current.length > 0) {
       moveTimerRef.current += deltaMs
-      while (moveTimerRef.current >= MOVE_INTERVAL_MS && moveQueueRef.current.length > 0) {
-        moveTimerRef.current -= MOVE_INTERVAL_MS
+      while (moveQueueRef.current.length > 0) {
+        const nextOpcode = moveQueueRef.current[0]
+        const interval = (MOVE_INTERVALS[nextOpcode] ?? 60) / speedRef.current
+        if (moveTimerRef.current < interval) break
+        moveTimerRef.current -= interval
         const opcode = moveQueueRef.current.shift()
         const action = OPCODE_ACTIONS[opcode]
         if (action && stateRef.current) {
