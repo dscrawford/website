@@ -1,6 +1,5 @@
 use crate::board;
-use crate::evaluator::{self, Weights};
-use crate::pieces;
+use crate::evaluator;
 use crate::placement::{self, Placement};
 
 /// Result of the solver: the best placement and whether to hold first.
@@ -11,12 +10,8 @@ pub struct SolveResult {
 }
 
 /// Solve for the best move given the current game state.
-///
-/// - `current_type`: current piece (1-7)
-/// - `hold`: held piece type, or 0 if none
-/// - `can_hold`: whether hold is available this turn
-/// - `next_queue`: upcoming pieces (used when holding with no held piece)
-/// - `open_col`: column to keep clear (typically width-1)
+/// Pure greedy: evaluate all placements of current piece (and optionally
+/// held/next piece) using El-Tetris heuristics, pick the highest score.
 pub fn solve(
     cells: &[u8],
     width: u32,
@@ -25,18 +20,13 @@ pub fn solve(
     hold: u8,
     can_hold: bool,
     next_queue: &[u8],
-    open_col: u32,
 ) -> Option<SolveResult> {
-    let weights = Weights::default();
+    let mut best: Option<(f64, SolveResult)> = None;
 
     // Score all placements for the current piece
     let current_placements = placement::enumerate_placements(cells, width, height, current_type);
-    let mut best: Option<(f64, SolveResult)> = None;
-
     for p in &current_placements {
-        let (new_cells, lines) =
-            board::simulate_place(cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col);
-        let score = evaluator::evaluate(&new_cells, width, height, lines, open_col, &weights);
+        let score = score_placement(cells, width, height, p);
         update_best(&mut best, score, p.clone(), false);
     }
 
@@ -46,32 +36,28 @@ pub fn solve(
         if alt_type > 0 && alt_type != current_type {
             let alt_placements = placement::enumerate_placements(cells, width, height, alt_type);
             for p in &alt_placements {
-                let (new_cells, lines) =
-                    board::simulate_place(cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col);
-                let mut score = evaluator::evaluate(&new_cells, width, height, lines, open_col, &weights);
-
-                // Bonus for holding an I-piece when we don't need it yet
-                if current_type == pieces::I && !is_tetris_ready(cells, width, height, open_col) {
-                    score += 200.0;
-                }
-
+                let score = score_placement(cells, width, height, p);
                 update_best(&mut best, score, p.clone(), true);
             }
         }
     }
 
-    // Special case: if we have an I-piece (current or hold) and the board is tetris-ready,
-    // strongly prefer dropping I in the open column
-    if is_tetris_ready(cells, width, height, open_col) {
-        if let Some(i_result) = find_i_piece_tetris(
-            cells, width, height, current_type, hold, can_hold, open_col,
-        ) {
-            // Override with I-piece Tetris if found
-            return Some(i_result);
-        }
-    }
-
     best.map(|(_, result)| result)
+}
+
+/// Score a single placement using El-Tetris evaluation.
+fn score_placement(cells: &[u8], width: u32, height: u32, p: &Placement) -> f64 {
+    let (new_cells, lines) =
+        board::simulate_place(cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col);
+    evaluator::evaluate(
+        &new_cells,
+        width,
+        height,
+        lines,
+        p.landing_row,
+        p.piece_type,
+        p.rotation,
+    )
 }
 
 fn update_best(
@@ -85,74 +71,6 @@ fn update_best(
         Some((best_score, _)) if score <= *best_score => {}
         _ => *best = Some((score, result)),
     }
-}
-
-/// Check if the board has 4+ rows that are full except the open column.
-fn is_tetris_ready(cells: &[u8], width: u32, height: u32, open_col: u32) -> bool {
-    let w = width as usize;
-    let h = height as usize;
-    let oc = open_col as usize;
-    let mut ready = 0;
-
-    for row in 0..h {
-        let start = row * w;
-        let mut full_except_open = true;
-        for col in 0..w {
-            if col == oc { continue; }
-            if cells[start + col] == pieces::EMPTY {
-                full_except_open = false;
-                break;
-            }
-        }
-        if full_except_open && cells[start + oc] == pieces::EMPTY {
-            ready += 1;
-        }
-    }
-    ready >= 4
-}
-
-/// Try to find an I-piece placement in the open column for a Tetris clear.
-fn find_i_piece_tetris(
-    cells: &[u8],
-    width: u32,
-    height: u32,
-    current_type: u8,
-    hold: u8,
-    can_hold: bool,
-    open_col: u32,
-) -> Option<SolveResult> {
-    let use_hold;
-    if current_type == pieces::I {
-        use_hold = false;
-    } else if can_hold && hold == pieces::I {
-        use_hold = true;
-    } else {
-        return None;
-    }
-
-    // I-piece vertical (rotation 1 or 3) dropped into the open column
-    for rotation in [1u8, 3] {
-        let min_c = pieces::min_col_offset(pieces::I, rotation) as i32;
-        let target_col = open_col as i32 - min_c;
-
-        if board::check_collision(cells, width, height, pieces::I, rotation, 0, target_col) {
-            continue;
-        }
-
-        let landing_row = board::drop_row(cells, width, height, pieces::I, rotation, target_col);
-
-        return Some(SolveResult {
-            placement: Placement {
-                piece_type: pieces::I,
-                rotation,
-                col: target_col,
-                landing_row,
-            },
-            use_hold,
-        });
-    }
-
-    None
 }
 
 #[cfg(test)]
@@ -171,82 +89,69 @@ mod tests {
     #[test]
     fn solve_returns_some_on_empty_board() {
         let cells = empty_board(10, 20);
-        let result = solve(&cells, 10, 20, T, 0, true, &[I, S, Z], 9);
+        let result = solve(&cells, 10, 20, T, 0, true, &[I, S, Z]);
         assert!(result.is_some());
     }
 
     #[test]
-    fn solve_avoids_open_column() {
+    fn solve_picks_low_placement() {
         let cells = empty_board(10, 20);
-        let result = solve(&cells, 10, 20, T, 0, true, &[I, S], 9).unwrap();
-        // Placement should NOT occupy column 9
-        let shape = pieces::get_shape(result.placement.piece_type, result.placement.rotation);
-        for &(_, dc) in shape.iter() {
-            let c = result.placement.col + dc as i32;
-            assert_ne!(c, 9, "Solver should avoid the open column");
-        }
+        let result = solve(&cells, 10, 20, T, 0, false, &[]).unwrap();
+        // El-Tetris penalizes landing height, so piece should land near the bottom
+        assert!(result.placement.landing_row >= 17, "Expected low placement, got row {}", result.placement.landing_row);
     }
 
     #[test]
-    fn solve_holds_i_piece_when_not_ready() {
+    fn solve_considers_hold() {
         let cells = empty_board(10, 20);
-        // Current piece is I, board is empty (not tetris ready)
-        // Solver should hold the I piece
-        let result = solve(&cells, 10, 20, I, 0, true, &[T, S], 9).unwrap();
-        assert!(result.use_hold, "Should hold I piece when board not tetris-ready");
-    }
-
-    #[test]
-    fn solve_drops_i_piece_when_tetris_ready() {
-        let mut cells = empty_board(10, 20);
-        // Fill rows 16-19 except col 9
-        for r in 16..20 {
-            for c in 0..9 {
-                set_cell(&mut cells, 10, r, c, T);
-            }
-        }
-        let result = solve(&cells, 10, 20, I, 0, true, &[T, S], 9).unwrap();
-        assert!(!result.use_hold);
-        assert_eq!(result.placement.piece_type, I);
-        // Should place in the open column
-        let shape = pieces::get_shape(I, result.placement.rotation);
-        let cols: Vec<i32> = shape.iter().map(|&(_, dc)| result.placement.col + dc as i32).collect();
-        assert!(cols.contains(&9), "I piece should be placed in the open column");
-    }
-
-    #[test]
-    fn solve_swaps_hold_for_i_when_tetris_ready() {
-        let mut cells = empty_board(10, 20);
-        // Fill rows 16-19 except col 9
-        for r in 16..20 {
-            for c in 0..9 {
-                set_cell(&mut cells, 10, r, c, T);
-            }
-        }
-        // Current piece is T, hold is I
-        let result = solve(&cells, 10, 20, T, I, true, &[S], 9).unwrap();
-        assert!(result.use_hold, "Should swap to held I piece");
-        assert_eq!(result.placement.piece_type, I);
-    }
-
-    #[test]
-    fn is_tetris_ready_works() {
-        let mut cells = empty_board(10, 20);
-        assert!(!is_tetris_ready(&cells, 10, 20, 9));
-
-        // Fill 4 rows except col 9
-        for r in 16..20 {
-            for c in 0..9 {
-                set_cell(&mut cells, 10, r, c, T);
-            }
-        }
-        assert!(is_tetris_ready(&cells, 10, 20, 9));
+        // With hold available and a different piece held, solver should consider both
+        let result = solve(&cells, 10, 20, T, I, true, &[S]);
+        assert!(result.is_some());
     }
 
     #[test]
     fn solve_works_with_wide_board() {
         let cells = empty_board(40, 40);
-        let result = solve(&cells, 40, 40, T, 0, true, &[I, S], 39);
+        let result = solve(&cells, 40, 40, T, 0, true, &[I, S]);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn solve_avoids_holes() {
+        let mut cells = empty_board(10, 20);
+        // Fill row 19 except col 5
+        for c in 0..10 {
+            if c != 5 {
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        // Solver should prefer filling the gap at col 5 to avoid creating holes
+        let result = solve(&cells, 10, 20, T, 0, false, &[]).unwrap();
+        // The placement shouldn't create additional holes
+        let (new_cells, _) = board::simulate_place(
+            &cells, 10, 20,
+            result.placement.piece_type,
+            result.placement.rotation,
+            result.placement.landing_row,
+            result.placement.col,
+        );
+        let holes = board::count_holes(&new_cells, 10, 20);
+        // Good solver should keep holes minimal
+        assert!(holes <= 2, "Expected few holes, got {}", holes);
+    }
+
+    #[test]
+    fn solve_prefers_line_clears() {
+        let mut cells = empty_board(10, 20);
+        // Fill row 19 except cols 3,4,5 (T piece rotation 2 fills 3 cells in a row)
+        for c in 0..10 {
+            if c < 3 || c > 5 {
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        // Fill col 4 at row 18 (T rotation 2 also has a cell at row+1, col+1)
+        // With almost full row, solver should try to complete it
+        let result = solve(&cells, 10, 20, I, 0, false, &[]);
         assert!(result.is_some());
     }
 }

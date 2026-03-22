@@ -24,7 +24,6 @@ pub fn solve(
     can_hold: bool,
     next_queue: &[u8],
 ) -> Vec<u8> {
-    let open_col = width - 1;
     let hold_type = if hold < 0 { 0u8 } else { hold as u8 };
 
     let result = solver::solve(
@@ -35,7 +34,6 @@ pub fn solve(
         hold_type,
         can_hold,
         next_queue,
-        open_col,
     );
 
     match result {

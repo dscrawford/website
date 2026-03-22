@@ -173,6 +173,106 @@ pub fn aggregate_height(cells: &[u8], width: u32, height: u32) -> u32 {
     total
 }
 
+/// Count horizontal transitions: adjacent pairs in each row where one is filled
+/// and the other is empty. Walls (left/right boundaries) count as filled.
+pub fn row_transitions(cells: &[u8], width: u32, height: u32) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    let mut transitions = 0u32;
+
+    for row in 0..h {
+        let start = row * w;
+        // Left wall (filled) to first cell
+        if cells[start] == EMPTY {
+            transitions += 1;
+        }
+        // Interior transitions
+        for col in 1..w {
+            let prev = cells[start + col - 1];
+            let curr = cells[start + col];
+            if (prev == EMPTY) != (curr == EMPTY) {
+                transitions += 1;
+            }
+        }
+        // Last cell to right wall (filled)
+        if cells[start + w - 1] == EMPTY {
+            transitions += 1;
+        }
+    }
+    transitions
+}
+
+/// Count vertical transitions: adjacent pairs in each column where one is filled
+/// and the other is empty. The floor (below board) counts as filled; the ceiling
+/// (above board) counts as empty.
+pub fn column_transitions(cells: &[u8], width: u32, height: u32) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    let mut transitions = 0u32;
+
+    for col in 0..w {
+        // Ceiling (empty) to first row
+        if cells[col] != EMPTY {
+            transitions += 1;
+        }
+        // Interior transitions
+        for row in 1..h {
+            let prev = cells[(row - 1) * w + col];
+            let curr = cells[row * w + col];
+            if (prev == EMPTY) != (curr == EMPTY) {
+                transitions += 1;
+            }
+        }
+        // Last row to floor (filled)
+        if cells[(h - 1) * w + col] == EMPTY {
+            transitions += 1;
+        }
+    }
+    transitions
+}
+
+/// Sum of well depths. A well is an empty cell where both horizontal neighbors
+/// (or walls) are filled. The well depth is the number of consecutive empty cells
+/// downward from that position that also qualify as wells.
+pub fn well_sums(cells: &[u8], width: u32, height: u32) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    let mut sums = 0u32;
+
+    for col in 0..w {
+        for row in 0..h {
+            let cell = cells[row * w + col];
+            if cell != EMPTY {
+                continue;
+            }
+            // Check left neighbor (wall counts as filled)
+            let left_filled = col == 0 || cells[row * w + col - 1] != EMPTY;
+            // Check right neighbor (wall counts as filled)
+            let right_filled = col == w - 1 || cells[row * w + col + 1] != EMPTY;
+
+            if left_filled && right_filled {
+                // Count depth: how many consecutive well cells downward including this one
+                let mut depth = 1u32;
+                for r in (row + 1)..h {
+                    let c = cells[r * w + col];
+                    if c != EMPTY {
+                        break;
+                    }
+                    let lf = col == 0 || cells[r * w + col - 1] != EMPTY;
+                    let rf = col == w - 1 || cells[r * w + col + 1] != EMPTY;
+                    if lf && rf {
+                        depth += 1;
+                    } else {
+                        break;
+                    }
+                }
+                sums += depth;
+            }
+        }
+    }
+    sums
+}
+
 /// Height of the tallest column.
 pub fn max_height(cells: &[u8], width: u32, height: u32) -> u32 {
     let mut max = 0u32;
@@ -443,5 +543,119 @@ mod tests {
         let mut cells = empty_board(10, 20);
         set_cell(&mut cells, 10, 10, 5, T);
         assert_eq!(max_height(&cells, 10, 20), 10);
+    }
+
+    // -- row_transitions tests --
+
+    #[test]
+    fn row_transitions_empty_board() {
+        let cells = empty_board(10, 20);
+        // Every row: wall(filled)->empty = 1, empty->wall(filled) = 1 => 2 per row
+        // 20 rows * 2 = 40
+        assert_eq!(row_transitions(&cells, 10, 20), 40);
+    }
+
+    #[test]
+    fn row_transitions_full_row() {
+        let mut cells = empty_board(10, 20);
+        // Fill row 19 completely
+        for c in 0..10 {
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        // Row 19: wall-filled, all filled interior, filled-wall => 0 transitions
+        // Other 19 rows: 2 each => 38
+        assert_eq!(row_transitions(&cells, 10, 20), 38);
+    }
+
+    #[test]
+    fn row_transitions_single_cell() {
+        let mut cells = empty_board(10, 20);
+        set_cell(&mut cells, 10, 19, 5, T);
+        // Row 19: wall->empty(0-4) = 1, empty(4)->filled(5) = 1,
+        //         filled(5)->empty(6) = 1, empty(9)->wall = 1 => 4
+        // Other 19 rows: 2 each => 38
+        assert_eq!(row_transitions(&cells, 10, 20), 42);
+    }
+
+    // -- column_transitions tests --
+
+    #[test]
+    fn column_transitions_empty_board() {
+        let cells = empty_board(10, 20);
+        // Each column: ceiling(empty)->cell0(empty) = 0, all empty interior = 0,
+        //              cell19(empty)->floor(filled) = 1 => 1 per column
+        // 10 columns * 1 = 10
+        assert_eq!(column_transitions(&cells, 10, 20), 10);
+    }
+
+    #[test]
+    fn column_transitions_full_board() {
+        let mut cells = empty_board(10, 20);
+        for r in 0..20 {
+            for c in 0..10 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        // Each column: ceiling(empty)->cell0(filled) = 1, all filled = 0,
+        //              cell19(filled)->floor(filled) = 0 => 1 per column
+        // 10 columns * 1 = 10
+        assert_eq!(column_transitions(&cells, 10, 20), 10);
+    }
+
+    #[test]
+    fn column_transitions_floating_cell() {
+        let mut cells = empty_board(10, 20);
+        set_cell(&mut cells, 10, 10, 5, T);
+        // Col 5: ceiling->empty = 0, ..., empty(9)->filled(10) = 1,
+        //        filled(10)->empty(11) = 1, ..., empty(19)->floor = 1 => 3
+        // Other 9 cols: 1 each => 9
+        assert_eq!(column_transitions(&cells, 10, 20), 12);
+    }
+
+    // -- well_sums tests --
+
+    #[test]
+    fn well_sums_empty_board() {
+        let cells = empty_board(10, 20);
+        // No cells filled, so no walls on either side => no wells
+        // (except col 0 and col 9 which are bounded by walls)
+        // Actually: col 0 has left wall, col 1 is empty (not filled) => col 0 is NOT a well
+        // Well requires both neighbors filled. Empty neighbors don't count.
+        assert_eq!(well_sums(&cells, 10, 20), 0);
+    }
+
+    #[test]
+    fn well_sums_simple_well() {
+        let mut cells = empty_board(10, 20);
+        // Create a well at col 5: fill col 4 and col 6 at row 19
+        set_cell(&mut cells, 10, 19, 4, I);
+        set_cell(&mut cells, 10, 19, 6, I);
+        // Col 5, row 19: left(4)=filled, right(6)=filled, cell=empty => well depth 1
+        assert_eq!(well_sums(&cells, 10, 20), 1);
+    }
+
+    #[test]
+    fn well_sums_deep_well() {
+        let mut cells = empty_board(10, 20);
+        // Create a 3-deep well at col 5 by filling cols 4 and 6 for rows 17-19
+        for r in 17..20 {
+            set_cell(&mut cells, 10, r, 4, I);
+            set_cell(&mut cells, 10, r, 6, I);
+        }
+        // Col 5 at rows 17,18,19: each is a well cell
+        // Row 17: depth 3 (17,18,19)
+        // Row 18: depth 2 (18,19)
+        // Row 19: depth 1
+        // Total: 3 + 2 + 1 = 6
+        assert_eq!(well_sums(&cells, 10, 20), 6);
+    }
+
+    #[test]
+    fn well_sums_wall_bounded() {
+        let mut cells = empty_board(10, 20);
+        // Col 0 with right neighbor filled — left wall counts as filled
+        set_cell(&mut cells, 10, 19, 1, I);
+        // Col 0, row 19: left=wall(filled), right(1)=filled => well depth 1
+        assert_eq!(well_sums(&cells, 10, 20), 1);
     }
 }
