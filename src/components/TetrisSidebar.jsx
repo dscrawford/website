@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { PIECE_SHAPES } from '../game-engine/types.js'
 import { PIECE_COLORS, PIECE_GLOW_COLORS } from '../rendering/colors.js'
 import './TetrisSidebar.css'
@@ -41,6 +41,42 @@ function PiecePreview({ pieceType, size = 80 }) {
   }, [pieceType, size])
 
   return <canvas ref={canvasRef} width={size} height={size} className="piece-preview-canvas" />
+}
+
+function SpeedInput({ value, onChange }) {
+  const [draft, setDraft] = useState(String(value))
+  const [editing, setEditing] = useState(false)
+
+  // Sync draft from prop when not actively editing
+  useEffect(() => {
+    if (!editing) setDraft(String(value))
+  }, [value, editing])
+
+  const commit = () => {
+    setEditing(false)
+    const num = Math.floor(Number(draft))
+    if (num >= 1 && num <= 999) {
+      onChange?.(num)
+    } else {
+      setDraft(String(value))
+    }
+  }
+
+  return (
+    <div className="speed-input-row">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        onFocus={(e) => { setEditing(true); e.target.select() }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur() }}
+        className="speed-input"
+      />
+      <span className="sidebar-value">x</span>
+    </div>
+  )
 }
 
 const stopPropagation = (e) => e.stopPropagation()
@@ -96,20 +132,7 @@ export default function TetrisSidebar({
         onPointerDown={stopPropagation}
       >
         <div className="sidebar-label">SPEED:</div>
-        <div className="speed-input-row">
-          <input
-            type="number"
-            min={1}
-            max={999}
-            value={speedMultiplier}
-            onChange={(e) => {
-              const val = Math.max(1, Math.min(999, Math.floor(Number(e.target.value) || 1)))
-              onSpeedChange?.(val)
-            }}
-            className="speed-input"
-          />
-          <span className="sidebar-value">x</span>
-        </div>
+        <SpeedInput value={speedMultiplier} onChange={onSpeedChange} />
       </div>
     </aside>
   )

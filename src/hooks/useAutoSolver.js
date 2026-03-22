@@ -98,18 +98,30 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       }
     }
 
-    // Execute moves at per-opcode intervals
+    // Execute moves at per-opcode intervals (or instantly at high speed)
     if (moveQueueRef.current.length > 0) {
-      moveTimerRef.current += deltaMs
-      while (moveQueueRef.current.length > 0) {
-        const nextOpcode = moveQueueRef.current[0]
-        const interval = (MOVE_INTERVALS[nextOpcode] ?? 60) / speedRef.current
-        if (moveTimerRef.current < interval) break
-        moveTimerRef.current -= interval
-        const opcode = moveQueueRef.current.shift()
-        const action = OPCODE_ACTIONS[opcode]
-        if (action && stateRef.current) {
-          updateState(action(stateRef.current))
+      const speed = speedRef.current
+      if (speed >= 10) {
+        // At 10x+, execute entire move queue instantly — no animation delay
+        while (moveQueueRef.current.length > 0) {
+          const opcode = moveQueueRef.current.shift()
+          const action = OPCODE_ACTIONS[opcode]
+          if (action && stateRef.current) {
+            updateState(action(stateRef.current))
+          }
+        }
+      } else {
+        moveTimerRef.current += deltaMs
+        while (moveQueueRef.current.length > 0) {
+          const nextOpcode = moveQueueRef.current[0]
+          const interval = (MOVE_INTERVALS[nextOpcode] ?? 60) / speed
+          if (moveTimerRef.current < interval) break
+          moveTimerRef.current -= interval
+          const opcode = moveQueueRef.current.shift()
+          const action = OPCODE_ACTIONS[opcode]
+          if (action && stateRef.current) {
+            updateState(action(stateRef.current))
+          }
         }
       }
     }

@@ -42,7 +42,7 @@ export function useGameLoop(stateRef, onTick, onRender, paused, onFrame, speedMu
       const state = stateRef.current
       if (state && !state.gameOver) {
         const interval = getDropInterval(state.level) / speedRef.current
-        const maxTicks = 4
+        const maxTicks = speedRef.current >= 10 ? 64 : 4
         let tickCount = 0
         while (accumulatorRef.current >= interval && tickCount < maxTicks) {
           accumulatorRef.current -= interval
