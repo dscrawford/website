@@ -1,0 +1,5 @@
+/.agent-shell/
+node_modules/
+dist/
+.direnv/
+result
