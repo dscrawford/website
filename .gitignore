@@ -6,3 +6,4 @@ result
 target/
 src/tetris-solver-pkg/
 public/data/
+data/
