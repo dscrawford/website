@@ -1,27 +1,36 @@
+import { useState, useCallback } from 'react'
+import TopNav from './components/TopNav.jsx'
+import CenterCard from './components/CenterCard.jsx'
+import TetrisBackground from './components/TetrisBackground.jsx'
+import TetrisSidebar from './components/TetrisSidebar.jsx'
 import './App.css'
 
 function App() {
+  const [cardFocused, setCardFocused] = useState(true)
+  const [gameState, setGameState] = useState(null)
+
+  const handleStateChange = useCallback((state) => {
+    setGameState(state)
+  }, [])
+
+  const handleBackgroundClick = () => {
+    setCardFocused(false)
+  }
+
   return (
-    <div className="site">
-      {/* Top nav */}
-      <nav className="top-nav">
-        <div className="nav-left">
-          <span className="site-title">DANIELCRAWFORD.DEV</span>
-          <span className="nav-links">GAMES | CODE | RESUME</span>
-        </div>
-      </nav>
-
-      {/* Center card */}
-      <div className="center-card">
-        <h1>DANIEL<br />CRAWFORD</h1>
-        <a href="/resume.pdf" className="resume-btn">
-          <span className="resume-icon">📄</span>
-          RESUME (PDF)
-        </a>
-      </div>
-
-      {/* Tetris background will go here — placeholder for now */}
-      <div className="tetris-bg-placeholder" />
+    <div className="site" onClick={handleBackgroundClick}>
+      <TetrisBackground
+        active={!cardFocused}
+        onStateChange={handleStateChange}
+      />
+      <TopNav />
+      <TetrisSidebar
+        nextQueue={gameState?.nextQueue}
+        hold={gameState?.hold}
+        score={gameState?.score}
+        level={gameState?.level}
+      />
+      <CenterCard onFocusChange={setCardFocused} />
     </div>
   )
 }

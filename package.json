@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "wasm:build": "cd tetris-solver && wasm-pack build --target web --out-dir ../src/tetris-solver-pkg",
+    "wasm:dev": "cd tetris-solver && wasm-pack build --target web --dev --out-dir ../src/tetris-solver-pkg",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -27,6 +29,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "vite": "^8.0.1",
+    "vite-plugin-wasm": "^3.6.0",
     "vitest": "^4.1.0"
   }
 }

@@ -1,0 +1,13 @@
+.tetris-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.tetris-background canvas {
+  display: block;
+}

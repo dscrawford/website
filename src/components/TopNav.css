@@ -1,0 +1,29 @@
+.top-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 24px;
+  z-index: 10;
+}
+
+.nav-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.site-title {
+  color: #e0e0e0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.nav-links {
+  color: #888;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
