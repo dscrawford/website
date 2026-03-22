@@ -9,7 +9,7 @@ function App() {
   const [cardFocused, setCardFocused] = useState(true)
   const [gameState, setGameState] = useState(null)
   const [aiEnabled, setAiEnabled] = useState(true)
-  const [speedMultiplier, setSpeedMultiplier] = useState(16)
+  const [speedMultiplier, setSpeedMultiplier] = useState(2)
   const [uiHidden, setUiHidden] = useState(false)
 
   const handleStateChange = useCallback((state) => {
@@ -29,6 +29,7 @@ function App() {
         onStateChange={handleStateChange}
         aiEnabled={aiEnabled}
         speedMultiplier={speedMultiplier}
+        targetFillRatio={0.75}
       />
       {!uiHidden && (
         <>

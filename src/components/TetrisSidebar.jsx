@@ -96,16 +96,20 @@ export default function TetrisSidebar({
         onPointerDown={stopPropagation}
       >
         <div className="sidebar-label">SPEED:</div>
-        <input
-          type="range"
-          min={1}
-          max={128}
-          step={1}
-          value={speedMultiplier}
-          onChange={(e) => onSpeedChange?.(Number(e.target.value))}
-          className="speed-slider"
-        />
-        <div className="sidebar-value">{speedMultiplier}x</div>
+        <div className="speed-input-row">
+          <input
+            type="number"
+            min={1}
+            max={999}
+            value={speedMultiplier}
+            onChange={(e) => {
+              const val = Math.max(1, Math.min(999, Math.floor(Number(e.target.value) || 1)))
+              onSpeedChange?.(val)
+            }}
+            className="speed-input"
+          />
+          <span className="sidebar-value">x</span>
+        </div>
       </div>
     </aside>
   )

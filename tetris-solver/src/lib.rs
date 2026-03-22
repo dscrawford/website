@@ -11,6 +11,9 @@ use wasm_bindgen::prelude::*;
 ///
 /// Returns a Vec<u8> of move opcodes:
 ///   0=Left, 1=Right, 2=RotateCW, 3=RotateCCW, 4=HardDrop, 5=Hold
+///
+/// `target_fill_ratio` controls when the AI transitions from stacking to scoring.
+/// 0.75 means the AI stacks to ~75% average fill before prioritizing line clears.
 #[wasm_bindgen]
 pub fn solve(
     board_cells: &[u8],
@@ -23,6 +26,7 @@ pub fn solve(
     hold: i8,
     can_hold: bool,
     next_queue: &[u8],
+    target_fill_ratio: f64,
 ) -> Vec<u8> {
     let hold_type = if hold < 0 { 0u8 } else { hold as u8 };
 
@@ -34,6 +38,7 @@ pub fn solve(
         hold_type,
         can_hold,
         next_queue,
+        target_fill_ratio,
     );
 
     match result {

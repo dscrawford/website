@@ -63,8 +63,27 @@
   color: #fff;
 }
 
-.speed-slider {
-  width: 80px;
-  accent-color: #5b8dd9;
-  cursor: pointer;
+.speed-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.speed-input {
+  width: 56px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.speed-input::-webkit-inner-spin-button,
+.speed-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
