@@ -273,6 +273,80 @@ pub fn well_sums(cells: &[u8], width: u32, height: u32) -> u32 {
     sums
 }
 
+// --- 3-Tower strategy helpers ---
+
+/// Returns the inclusive (start, end) column range of the centered 4-wide well.
+/// For width=10: (3, 6). For width=20: (8, 11).
+pub fn well_column_range(width: u32) -> (u32, u32) {
+    let start = (width - 4) / 2;
+    (start, start + 3)
+}
+
+/// Count filled cells within the well zone columns, from the board bottom up to
+/// the max tower height. Returns the count — lower is better (cleaner well).
+pub fn well_fill_count(cells: &[u8], width: u32, height: u32, well_start: u32, well_end: u32) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    let mut count = 0u32;
+    for row in 0..h {
+        for col in well_start..=well_end {
+            if cells[row * w + col as usize] != EMPTY {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Returns (left_avg_height, right_avg_height) for tower zones flanking the well.
+/// Left zone: columns 0..well_start, Right zone: columns (well_end+1)..width.
+pub fn tower_zone_avg_heights(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    well_start: u32,
+    well_end: u32,
+) -> (f64, f64) {
+    let left_cols = well_start;
+    let right_cols = width - well_end - 1;
+
+    let left_avg = if left_cols > 0 {
+        let sum: u32 = (0..well_start).map(|c| column_height(cells, width, height, c)).sum();
+        sum as f64 / left_cols as f64
+    } else {
+        0.0
+    };
+
+    let right_avg = if right_cols > 0 {
+        let sum: u32 = ((well_end + 1)..width).map(|c| column_height(cells, width, height, c)).sum();
+        sum as f64 / right_cols as f64
+    } else {
+        0.0
+    };
+
+    (left_avg, right_avg)
+}
+
+/// Count how many cells of a placed piece land inside the well columns.
+pub fn placement_cells_in_well(
+    piece_type: u8,
+    rotation: u8,
+    _row: i32,
+    col: i32,
+    well_start: u32,
+    well_end: u32,
+) -> u32 {
+    let shape = pieces::get_shape(piece_type, rotation);
+    let mut count = 0u32;
+    for &(_dr, dc) in shape.iter() {
+        let c = col + dc as i32;
+        if c >= well_start as i32 && c <= well_end as i32 {
+            count += 1;
+        }
+    }
+    count
+}
+
 /// Height of the tallest column.
 pub fn max_height(cells: &[u8], width: u32, height: u32) -> u32 {
     let mut max = 0u32;
@@ -657,5 +731,109 @@ mod tests {
         set_cell(&mut cells, 10, 19, 1, I);
         // Col 0, row 19: left=wall(filled), right(1)=filled => well depth 1
         assert_eq!(well_sums(&cells, 10, 20), 1);
+    }
+
+    // -- 3-Tower helper tests --
+
+    #[test]
+    fn well_column_range_width_10() {
+        assert_eq!(well_column_range(10), (3, 6));
+    }
+
+    #[test]
+    fn well_column_range_width_20() {
+        assert_eq!(well_column_range(20), (8, 11));
+    }
+
+    #[test]
+    fn well_column_range_width_40() {
+        assert_eq!(well_column_range(40), (18, 21));
+    }
+
+    #[test]
+    fn well_fill_count_empty() {
+        let cells = empty_board(10, 20);
+        assert_eq!(well_fill_count(&cells, 10, 20, 3, 6), 0);
+    }
+
+    #[test]
+    fn well_fill_count_with_filled_cells() {
+        let mut cells = empty_board(10, 20);
+        set_cell(&mut cells, 10, 19, 4, I);
+        set_cell(&mut cells, 10, 19, 5, I);
+        assert_eq!(well_fill_count(&cells, 10, 20, 3, 6), 2);
+    }
+
+    #[test]
+    fn well_fill_count_ignores_outside_well() {
+        let mut cells = empty_board(10, 20);
+        // Fill cells outside well zone
+        set_cell(&mut cells, 10, 19, 0, I);
+        set_cell(&mut cells, 10, 19, 1, I);
+        set_cell(&mut cells, 10, 19, 9, I);
+        assert_eq!(well_fill_count(&cells, 10, 20, 3, 6), 0);
+    }
+
+    #[test]
+    fn tower_zone_avg_heights_empty() {
+        let cells = empty_board(10, 20);
+        let (left, right) = tower_zone_avg_heights(&cells, 10, 20, 3, 6);
+        assert!((left - 0.0).abs() < 0.001);
+        assert!((right - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn tower_zone_avg_heights_balanced() {
+        let mut cells = empty_board(10, 20);
+        // Fill bottom row of left tower (cols 0-2) and right tower (cols 7-9)
+        for c in 0..3 {
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        for c in 7..10 {
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        let (left, right) = tower_zone_avg_heights(&cells, 10, 20, 3, 6);
+        assert!((left - 1.0).abs() < 0.001);
+        assert!((right - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn tower_zone_avg_heights_unbalanced() {
+        let mut cells = empty_board(10, 20);
+        // Left tower: 3 rows high
+        for r in 17..20 {
+            for c in 0..3 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        // Right tower: 1 row high
+        for c in 7..10 {
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        let (left, right) = tower_zone_avg_heights(&cells, 10, 20, 3, 6);
+        assert!((left - 3.0).abs() < 0.001);
+        assert!((right - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn placement_cells_in_well_none() {
+        // T piece at col 0 — no cells in well (cols 3-6)
+        let count = placement_cells_in_well(T, 0, 18, 0, 3, 6);
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn placement_cells_in_well_partial() {
+        // T piece rotation 0 at col 2: cells at (row,3),(row+1,2),(row+1,3),(row+1,4)
+        // Col 3 and 4 are in well (3-6), col 2 is not
+        let count = placement_cells_in_well(T, 0, 18, 2, 3, 6);
+        assert_eq!(count, 3); // (18,3), (19,3), (19,4)
+    }
+
+    #[test]
+    fn placement_cells_in_well_all() {
+        // I piece horizontal at col 3: cells at cols 3,4,5,6 — all in well
+        let count = placement_cells_in_well(I, 0, 19, 3, 3, 6);
+        assert_eq!(count, 4);
     }
 }

@@ -8,9 +8,14 @@ import './App.css'
 function App() {
   const [cardFocused, setCardFocused] = useState(true)
   const [gameState, setGameState] = useState(null)
-  const [aiEnabled, setAiEnabled] = useState(true)
+  const [aiStrategy, setAiStrategy] = useState(() =>
+    Math.random() < 0.5 ? 'flat' : 'threeTower'
+  )
   const [speedMultiplier, setSpeedMultiplier] = useState(2)
   const [uiHidden, setUiHidden] = useState(false)
+
+  const aiEnabled = aiStrategy !== 'off'
+  const strategyCode = aiStrategy === 'threeTower' ? 1 : 0
 
   const handleStateChange = useCallback((state) => {
     setGameState(state)
@@ -28,6 +33,7 @@ function App() {
         active={!cardFocused}
         onStateChange={handleStateChange}
         aiEnabled={aiEnabled}
+        aiStrategy={strategyCode}
         speedMultiplier={speedMultiplier}
         targetFillRatio={0.75}
       />
@@ -39,8 +45,8 @@ function App() {
             hold={gameState?.hold}
             score={gameState?.score}
             level={gameState?.level}
-            aiEnabled={aiEnabled}
-            onAiToggle={setAiEnabled}
+            aiStrategy={aiStrategy}
+            onAiStrategyChange={setAiStrategy}
             speedMultiplier={speedMultiplier}
             onSpeedChange={setSpeedMultiplier}
           />
@@ -54,7 +60,7 @@ function App() {
         onPointerDown={(e) => e.stopPropagation()}
         title={uiHidden ? 'Show UI' : 'Hide UI'}
       >
-        {uiHidden ? '◉' : '◎'}
+        {uiHidden ? '\u25C9' : '\u25CE'}
       </button>
     </div>
   )

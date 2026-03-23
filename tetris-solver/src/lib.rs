@@ -4,6 +4,7 @@ pub mod placement;
 pub mod evaluator;
 pub mod solver;
 pub mod moves;
+pub mod strategy;
 
 use wasm_bindgen::prelude::*;
 
@@ -14,6 +15,8 @@ use wasm_bindgen::prelude::*;
 ///
 /// `target_fill_ratio` controls when the AI transitions from stacking to scoring.
 /// 0.75 means the AI stacks to ~75% average fill before prioritizing line clears.
+///
+/// `strategy` selects the AI personality: 0=Flat, 1=ThreeTower.
 #[wasm_bindgen]
 pub fn solve(
     board_cells: &[u8],
@@ -27,8 +30,10 @@ pub fn solve(
     can_hold: bool,
     next_queue: &[u8],
     target_fill_ratio: f64,
+    strategy: u8,
 ) -> Vec<u8> {
     let hold_type = if hold < 0 { 0u8 } else { hold as u8 };
+    let strat = strategy::Strategy::from_u8(strategy);
 
     let result = solver::solve(
         board_cells,
@@ -39,6 +44,7 @@ pub fn solve(
         can_hold,
         next_queue,
         target_fill_ratio,
+        strat,
     );
 
     match result {

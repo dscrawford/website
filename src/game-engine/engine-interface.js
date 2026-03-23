@@ -43,7 +43,7 @@ export async function initSolver() {
   return initPromise
 }
 
-export function solveMoves(state, targetFillRatio = 0.75) {
+export function solveMoves(state, targetFillRatio = 0.75, strategy = 0) {
   if (!wasmModule) return null
   try {
     const opcodes = wasmModule.solve(
@@ -58,6 +58,7 @@ export function solveMoves(state, targetFillRatio = 0.75) {
       state.canHold,
       new Uint8Array(state.nextQueue),
       targetFillRatio,
+      strategy,
     )
     return Array.from(opcodes)
   } catch (e) {

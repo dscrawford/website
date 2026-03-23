@@ -39,7 +39,7 @@ const OPCODE_ACTIONS = {
   [OPCODE_HOLD]: holdPiece,
 }
 
-export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 1, targetFillRatio = 0.75) {
+export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 1, targetFillRatio = 0.75, strategy = 0) {
   const moveQueueRef = useRef([])
   const readyRef = useRef(false)
   const lastPieceRef = useRef(null)
@@ -50,6 +50,8 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
   speedRef.current = speedMultiplier
   const targetFillRef = useRef(targetFillRatio)
   targetFillRef.current = targetFillRatio
+  const strategyRef = useRef(strategy)
+  strategyRef.current = strategy
 
   // Initialize WASM solver on mount (always, regardless of enabled)
   useEffect(() => {
@@ -61,14 +63,12 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     })
   }, [])
 
-  // Reset move queue when enabled state changes
+  // Reset move queue when enabled state or strategy changes
   useEffect(() => {
-    if (!enabled) {
-      moveQueueRef.current = []
-      lastPieceRef.current = null
-      moveTimerRef.current = 0
-    }
-  }, [enabled])
+    moveQueueRef.current = []
+    lastPieceRef.current = null
+    moveTimerRef.current = 0
+  }, [enabled, strategy])
 
   // Execute queued moves at a steady rate (called from game loop)
   const executeMoves = useCallback((deltaMs) => {
@@ -90,7 +90,7 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       const pieceKey = `${state.current.type}-${state.current.col}-${state.current.row}`
       if (pieceKey !== lastPieceRef.current) {
         lastPieceRef.current = pieceKey
-        const moves = solveMoves(state, targetFillRef.current)
+        const moves = solveMoves(state, targetFillRef.current, strategyRef.current)
         if (moves && moves.length > 0) {
           moveQueueRef.current = moves
           moveTimerRef.current = 0

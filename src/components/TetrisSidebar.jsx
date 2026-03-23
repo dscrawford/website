@@ -79,6 +79,12 @@ function SpeedInput({ value, onChange }) {
   )
 }
 
+const STRATEGY_OPTIONS = [
+  ['flat', 'FLAT'],
+  ['threeTower', '3-TOWER'],
+  ['off', 'OFF'],
+]
+
 const stopPropagation = (e) => e.stopPropagation()
 
 export default function TetrisSidebar({
@@ -86,8 +92,8 @@ export default function TetrisSidebar({
   hold,
   score,
   level,
-  aiEnabled,
-  onAiToggle,
+  aiStrategy,
+  onAiStrategyChange,
   speedMultiplier,
   onSpeedChange,
 }) {
@@ -118,12 +124,17 @@ export default function TetrisSidebar({
         onPointerDown={stopPropagation}
       >
         <div className="sidebar-label">AI MODE:</div>
-        <button
-          className={`ai-toggle ${aiEnabled ? 'ai-on' : 'ai-off'}`}
-          onClick={() => onAiToggle?.(!aiEnabled)}
-        >
-          {aiEnabled ? 'ON' : 'OFF'}
-        </button>
+        <div className="ai-strategy-selector">
+          {STRATEGY_OPTIONS.map(([key, label]) => (
+            <button
+              key={key}
+              className={`ai-strategy-btn${aiStrategy === key ? ' active' : ''}${key === 'off' && aiStrategy === key ? ' off-active' : ''}`}
+              onClick={() => onAiStrategyChange?.(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       <div
         className="sidebar-section"
