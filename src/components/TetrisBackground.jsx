@@ -8,7 +8,7 @@ import { useAutoSolver } from '../hooks/useAutoSolver.js'
 import { BOARD_HEIGHT } from '../game-engine/types.js'
 import './TetrisBackground.css'
 
-export default function TetrisBackground({ active, onStateChange, onAiInfoChange, aiEnabled = true, aiStrategy = 0, speedMultiplier = 1, targetFillRatio = 0.75 }) {
+export default function TetrisBackground({ active, onStateChange, onAiInfoChange, onResetRef, aiEnabled = true, aiStrategy = 0, speedMultiplier = 1, targetFillRatio = 0.75 }) {
   const canvasRef = useRef(null)
   const stateRef = useRef(null)
   const prevWidthRef = useRef(null)
@@ -20,6 +20,16 @@ export default function TetrisBackground({ active, onStateChange, onAiInfoChange
     prevWidthRef.current = width
     onStateChange?.(stateRef.current)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Expose reset function to parent via ref
+  useEffect(() => {
+    if (onResetRef) {
+      onResetRef.current = () => {
+        stateRef.current = createGame(width, BOARD_HEIGHT)
+        onStateChange?.(stateRef.current)
+      }
+    }
+  }, [width, onStateChange, onResetRef])
 
   // Handle resize
   useEffect(() => {

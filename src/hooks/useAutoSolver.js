@@ -175,7 +175,7 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
         waitingSnapRef.current = null
         hasSolvedRef.current = false
       } else {
-        return
+        return // still waiting for lock + spawn
       }
     }
 
@@ -189,7 +189,7 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       }
     }
 
-    // Phase 3: Execute queued moves
+    // Phase 3: Execute queued moves at timed intervals
     if (moveQueueRef.current.length > 0) {
       moveTimerRef.current += deltaMs
       while (moveQueueRef.current.length > 0) {

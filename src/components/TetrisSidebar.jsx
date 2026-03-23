@@ -47,7 +47,6 @@ function SpeedInput({ value, onChange }) {
   const [draft, setDraft] = useState(String(value))
   const [editing, setEditing] = useState(false)
 
-  // Sync draft from prop when not actively editing
   useEffect(() => {
     if (!editing) setDraft(String(value))
   }, [value, editing])
@@ -97,7 +96,10 @@ export default function TetrisSidebar({
   speedMultiplier,
   onSpeedChange,
   aiInfo,
+  onReset,
 }) {
+  const [debugOpen, setDebugOpen] = useState(false)
+
   return (
     <aside className="tetris-sidebar">
       <div className="sidebar-section">
@@ -146,23 +148,40 @@ export default function TetrisSidebar({
         <div className="sidebar-label">SPEED:</div>
         <SpeedInput value={speedMultiplier} onChange={onSpeedChange} />
       </div>
-      {aiInfo && aiStrategy !== 'off' && (
-        <>
-          <div className="sidebar-section">
-            <div className="sidebar-label">PHASE:</div>
-            <div className={`sidebar-value phase-value ${aiInfo.mode === 'scoring' ? 'phase-scoring' : 'phase-stacking'}`}>
+      <div
+        className="sidebar-section sidebar-actions"
+        onClick={stopPropagation}
+        onMouseDown={stopPropagation}
+        onPointerDown={stopPropagation}
+      >
+        <button className="sidebar-btn reset-btn" onClick={() => onReset?.()}>
+          RESET
+        </button>
+        <button
+          className={`sidebar-btn debug-btn${debugOpen ? ' debug-open' : ''}`}
+          onClick={() => setDebugOpen((d) => !d)}
+          title="Toggle debug info"
+        >
+          {debugOpen ? '\u2716' : '\u2699'}
+        </button>
+      </div>
+      {debugOpen && aiInfo && aiStrategy !== 'off' && (
+        <div className="debug-panel">
+          <div className="debug-row">
+            <span className="debug-label">PHASE</span>
+            <span className={`debug-value ${aiInfo.mode === 'scoring' ? 'phase-scoring' : 'phase-stacking'}`}>
               {aiInfo.mode === 'scoring' ? 'SCORE' : 'STACK'}
-            </div>
+            </span>
           </div>
-          <div className="sidebar-section">
-            <div className="sidebar-label">FILL:</div>
-            <div className="sidebar-value">{Math.round(aiInfo.fill * 100)}%</div>
+          <div className="debug-row">
+            <span className="debug-label">FILL</span>
+            <span className="debug-value">{Math.round(aiInfo.fill * 100)}%</span>
           </div>
-          <div className="sidebar-section">
-            <div className="sidebar-label">TARGET:</div>
-            <div className="sidebar-value">{Math.round(aiInfo.target * 100)}%</div>
+          <div className="debug-row">
+            <span className="debug-label">TARGET</span>
+            <span className="debug-value">{Math.round(aiInfo.target * 100)}%</span>
           </div>
-        </>
+        </div>
       )}
     </aside>
   )

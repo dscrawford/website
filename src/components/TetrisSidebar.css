@@ -87,6 +87,74 @@
   color: #fff;
 }
 
+.sidebar-actions {
+  flex-direction: row;
+  gap: 6px;
+}
+
+.sidebar-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.reset-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+.reset-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.debug-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #666;
+  font-size: 14px;
+  padding: 3px 8px;
+}
+
+.debug-btn:hover,
+.debug-btn.debug-open {
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.debug-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.debug-label {
+  color: #666;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.debug-value {
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .speed-input-row {
   display: flex;
   align-items: center;
