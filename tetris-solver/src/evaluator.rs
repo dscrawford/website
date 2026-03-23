@@ -5,12 +5,11 @@ use crate::strategy::Strategy;
 // === Flat strategy weights (El-Tetris, Yiyuan Lee) ===
 
 const W_LANDING_HEIGHT: f64 = -4.500158825082766;
-const W_ROWS_REMOVED: f64 = 3.4181268101392694;
 const W_ROW_TRANSITIONS: f64 = -3.2178882868487753;
 const W_COLUMN_TRANSITIONS: f64 = -9.348695305445199;
 const W_HOLES: f64 = -7.899265427351652;
 const W_WELL_SUMS: f64 = -3.3855972247263626;
-const W_HEIGHT_GAP: f64 = -1500.0;
+const W_HEIGHT_GAP: f64 = -8000.0;
 
 // === 3-Tower strategy weights ===
 
@@ -23,7 +22,7 @@ const TT_WELL_SUMS: f64 = -1.0;
 const TT_TOWER_BALANCE: f64 = -4.0;
 const TT_ROWS_STACKING: f64 = -8.0;
 const TT_ROWS_SCORING: f64 = 5.0;
-const TT_HEIGHT_GAP: f64 = -1500.0;
+const TT_HEIGHT_GAP: f64 = -8000.0;
 
 /// Evaluate a board state after placement, dispatching on strategy.
 pub fn evaluate(
@@ -59,7 +58,7 @@ fn evaluate_flat(
     landing_row: i32,
     piece_type: u8,
     rotation: u8,
-    scoring_urgency: f64,
+    _scoring_urgency: f64,
     target_fill: f64,
 ) -> f64 {
     let landing_height = compute_landing_height(height, landing_row, piece_type, rotation);
@@ -69,20 +68,41 @@ fn evaluate_flat(
     let holes = board::count_holes(cells, width, height) as f64;
     let wells = board::well_sums(cells, width, height) as f64;
 
-    const W_STACKING_ROWS: f64 = -5.0;
-    let rows_removed_weight = W_STACKING_ROWS + (W_ROWS_REMOVED - W_STACKING_ROWS) * scoring_urgency;
-
     let avg_fill = board::aggregate_height(cells, width, height) as f64 / (width as f64 * height as f64);
-    let gap = (target_fill - avg_fill).max(0.0);
-    let height_gap_penalty = W_HEIGHT_GAP * gap * (1.0 - scoring_urgency);
 
-    W_LANDING_HEIGHT * landing_height
-        + rows_removed_weight * lines_cleared as f64
-        + W_ROW_TRANSITIONS * row_trans
-        + W_COLUMN_TRANSITIONS * col_trans
-        + W_HOLES * holes
-        + W_WELL_SUMS * wells
-        + height_gap_penalty
+    let below_target = avg_fill < target_fill;
+
+    // Symmetric distance-from-target penalty — the dominant force in both modes
+    let deviation = (avg_fill - target_fill).abs();
+    let target_penalty = W_HEIGHT_GAP * deviation * deviation;
+
+    if below_target {
+        // STACKING MODE: full El-Tetris quality weights, penalize line clears,
+        // reduced landing height (we want to stack high)
+        const W_STACKING_ROWS: f64 = -20.0;
+        let landing_weight = W_LANDING_HEIGHT * 0.2;
+
+        landing_weight * landing_height
+            + W_STACKING_ROWS * lines_cleared as f64
+            + W_ROW_TRANSITIONS * row_trans
+            + W_COLUMN_TRANSITIONS * col_trans
+            + W_HOLES * holes
+            + W_WELL_SUMS * wells
+            + target_penalty
+    } else {
+        // SCORING MODE: massively reward line clears, reduce quality weights
+        // so the solver prioritizes getting lines off the board over keeping
+        // a pristine surface. Holes/transitions matter less when clearing down.
+        const W_SCORING_ROWS: f64 = 30.0;
+
+        landing_height * W_LANDING_HEIGHT
+            + W_SCORING_ROWS * lines_cleared as f64
+            + W_ROW_TRANSITIONS * row_trans * 0.3
+            + W_COLUMN_TRANSITIONS * col_trans * 0.3
+            + W_HOLES * holes * 0.5
+            + W_WELL_SUMS * wells * 0.3
+            + target_penalty
+    }
 }
 
 /// 3-Tower strategy: rewards keeping a centered 4-wide well clear while building towers.
@@ -124,8 +144,8 @@ fn evaluate_three_tower(
     let rows_removed_weight = TT_ROWS_STACKING + (TT_ROWS_SCORING - TT_ROWS_STACKING) * scoring_urgency;
 
     let avg_fill = board::aggregate_height(cells, width, height) as f64 / (width as f64 * height as f64);
-    let gap = (target_fill - avg_fill).max(0.0);
-    let height_gap_penalty = TT_HEIGHT_GAP * gap * (1.0 - scoring_urgency);
+    let deviation = (avg_fill - target_fill).abs();
+    let target_penalty = TT_HEIGHT_GAP * deviation * deviation;
 
     TT_LANDING_HEIGHT * landing_height
         + TT_WELL_CLEANLINESS * well_clean_ratio
@@ -135,7 +155,7 @@ fn evaluate_three_tower(
         + TT_WELL_SUMS * wells
         + TT_TOWER_BALANCE * balance_penalty
         + rows_removed_weight * lines_cleared as f64
-        + height_gap_penalty
+        + target_penalty
 }
 
 /// Compute landing height as the midpoint of the piece's vertical extent,
@@ -173,29 +193,31 @@ mod tests {
     }
 
     #[test]
-    fn clearing_lines_improves_score_at_full_urgency() {
+    fn above_target_rewards_line_clears() {
+        // Board at target — use target 0.0 so empty board is "above target"
         let cells = empty_board(10, 20);
-        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.75, Strategy::Flat);
-        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 1.0, 0.75, Strategy::Flat);
-        assert!(score_1 > score_0);
+        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::Flat);
+        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 1.0, 0.0, Strategy::Flat);
+        assert!(score_1 > score_0, "Above target, clears ({}) should beat no clears ({})", score_1, score_0);
     }
 
     #[test]
-    fn stacking_penalizes_line_clears() {
+    fn below_target_penalizes_line_clears() {
         let cells = empty_board(10, 20);
         let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 0.0, 0.75, Strategy::Flat);
         let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.0, 0.75, Strategy::Flat);
-        assert!(score_0 > score_1);
+        assert!(score_0 > score_1, "Below target, no clears ({}) should beat clears ({})", score_0, score_1);
     }
 
     #[test]
-    fn mid_urgency_is_between_extremes() {
+    fn scoring_vs_stacking_by_target() {
+        // Same board, same piece — but different targets flip the behavior
         let cells = empty_board(10, 20);
-        let score_stack = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.0, 0.75, Strategy::Flat);
-        let score_mid = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.5, 0.75, Strategy::Flat);
-        let score_score = evaluate(&cells, 10, 20, 1, 18, T, 0, 1.0, 0.75, Strategy::Flat);
-        assert!(score_mid > score_stack);
-        assert!(score_score > score_mid);
+        // Target 0.0: board is "above" target → scoring mode → rewards clears
+        let score_scoring = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.0, 0.0, Strategy::Flat);
+        // Target 0.75: board is "below" target → stacking mode → penalizes clears
+        let score_stacking = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.0, 0.75, Strategy::Flat);
+        assert!(score_scoring > score_stacking);
     }
 
     #[test]
@@ -207,11 +229,12 @@ mod tests {
     }
 
     #[test]
-    fn height_gap_fades_at_high_urgency() {
+    fn target_penalty_differs_by_target() {
         let cells = empty_board(10, 20);
-        let score_a = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.75, Strategy::Flat);
-        let score_b = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::Flat);
-        assert!((score_a - score_b).abs() < 0.001);
+        // Empty board: avg_fill = 0. Target 0.0 → deviation 0. Target 0.75 → deviation 0.75.
+        let score_at_target = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::Flat);
+        let score_off_target = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.75, Strategy::Flat);
+        assert!(score_at_target > score_off_target);
     }
 
     #[test]
@@ -220,8 +243,9 @@ mod tests {
         let mut cells_hole = empty_board(10, 20);
         set_cell(&mut cells_hole, 10, 18, 3, T);
 
-        let score_clean = evaluate(&cells_no_hole, 10, 20, 0, 18, T, 0, 1.0, 0.75, Strategy::Flat);
-        let score_hole = evaluate(&cells_hole, 10, 20, 0, 18, T, 0, 1.0, 0.75, Strategy::Flat);
+        // Use target 0.0 so the target penalty doesn't mask the hole penalty
+        let score_clean = evaluate(&cells_no_hole, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::Flat);
+        let score_hole = evaluate(&cells_hole, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::Flat);
         assert!(score_clean > score_hole);
     }
 
@@ -273,21 +297,22 @@ mod tests {
 
     #[test]
     fn three_tower_balanced_towers_preferred() {
-        // Balanced: both sides have height 3
+        // Balanced: both sides have height 3 (18 cells total)
         let mut balanced = empty_board(10, 20);
         for r in 17..20 {
             for c in 0..3 { set_cell(&mut balanced, 10, r, c, I); }
             for c in 7..10 { set_cell(&mut balanced, 10, r, c, I); }
         }
-        // Unbalanced: left=6, right=1
+        // Unbalanced: left=5, right=1 (18 cells total — same fill)
         let mut unbalanced = empty_board(10, 20);
-        for r in 14..20 {
+        for r in 15..20 {
             for c in 0..3 { set_cell(&mut unbalanced, 10, r, c, I); }
         }
         for c in 7..10 { set_cell(&mut unbalanced, 10, 19, c, I); }
 
-        let score_bal = evaluate(&balanced, 10, 20, 0, 16, T, 0, 0.3, 0.85, Strategy::ThreeTower);
-        let score_unbal = evaluate(&unbalanced, 10, 20, 0, 13, T, 0, 0.3, 0.85, Strategy::ThreeTower);
+        // Use high urgency so height-gap penalty is zero for both
+        let score_bal = evaluate(&balanced, 10, 20, 0, 16, T, 0, 1.0, 0.85, Strategy::ThreeTower);
+        let score_unbal = evaluate(&unbalanced, 10, 20, 0, 14, T, 0, 1.0, 0.85, Strategy::ThreeTower);
         assert!(score_bal > score_unbal, "Balanced ({}) should beat unbalanced ({})", score_bal, score_unbal);
     }
 

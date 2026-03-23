@@ -96,6 +96,7 @@ export default function TetrisSidebar({
   onAiStrategyChange,
   speedMultiplier,
   onSpeedChange,
+  aiInfo,
 }) {
   return (
     <aside className="tetris-sidebar">
@@ -145,6 +146,24 @@ export default function TetrisSidebar({
         <div className="sidebar-label">SPEED:</div>
         <SpeedInput value={speedMultiplier} onChange={onSpeedChange} />
       </div>
+      {aiInfo && aiStrategy !== 'off' && (
+        <>
+          <div className="sidebar-section">
+            <div className="sidebar-label">PHASE:</div>
+            <div className={`sidebar-value phase-value ${aiInfo.mode === 'scoring' ? 'phase-scoring' : 'phase-stacking'}`}>
+              {aiInfo.mode === 'scoring' ? 'SCORE' : 'STACK'}
+            </div>
+          </div>
+          <div className="sidebar-section">
+            <div className="sidebar-label">FILL:</div>
+            <div className="sidebar-value">{Math.round(aiInfo.fill * 100)}%</div>
+          </div>
+          <div className="sidebar-section">
+            <div className="sidebar-label">TARGET:</div>
+            <div className="sidebar-value">{Math.round(aiInfo.target * 100)}%</div>
+          </div>
+        </>
+      )}
     </aside>
   )
 }

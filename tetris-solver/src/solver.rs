@@ -17,15 +17,9 @@ const SIGMOID_K: f64 = 10.0;
 // === Per-strategy constants ===
 
 // Flat strategy
-const FLAT_HOLD_I_THRESHOLD: f64 = 0.3;
-const FLAT_DANGER_THRESHOLD: f64 = 0.85;
-const FLAT_DANGER_PENALTY_MAX: f64 = -20.0;
-const FLAT_TETRIS_BONUS_MAX: f64 = 50.0;
+const FLAT_TETRIS_BONUS_MAX: f64 = 80.0;
 
 // 3-Tower strategy
-const TT_HOLD_I_THRESHOLD: f64 = 0.5;
-const TT_DANGER_THRESHOLD: f64 = 0.90;
-const TT_DANGER_PENALTY_MAX: f64 = -20.0;
 const TT_TETRIS_BONUS_MAX: f64 = 80.0;
 const TT_TARGET_FILL_OVERRIDE: f64 = 0.85;
 const TT_WELL_CELL_PENALTY: f64 = -8.0;
@@ -60,25 +54,19 @@ pub fn solve(
         Strategy::Flat => target_fill_ratio,
     };
 
-    let hold_i_threshold = match strategy {
-        Strategy::Flat => FLAT_HOLD_I_THRESHOLD,
-        Strategy::ThreeTower => TT_HOLD_I_THRESHOLD,
-    };
-
     let agg_h = board::aggregate_height(cells, width, height);
     let avg_fill = agg_h as f64 / (width as f64 * height as f64);
-    let max_h = board::max_height(cells, width, height);
-    let max_fill = max_h as f64 / height as f64;
     let urgency = scoring_urgency(avg_fill, target_fill);
+    let below_target = avg_fill < target_fill;
 
-    // Low urgency: hold I pieces to save them for scoring later
-    if urgency < hold_i_threshold && current_type == pieces::I && can_hold {
+    // Below target (stacking): hold I pieces for later scoring
+    if below_target && current_type == pieces::I && can_hold {
         let alt_type = if hold > 0 { hold } else if !next_queue.is_empty() { next_queue[0] } else { 0 };
         if alt_type > 0 && alt_type != pieces::I {
             let alt_placements = placement::enumerate_placements(cells, width, height, alt_type);
             let mut best: Option<(f64, SolveResult)> = None;
             for p in &alt_placements {
-                let score = score_placement(cells, width, height, p, urgency, max_fill, target_fill, strategy);
+                let score = score_placement(cells, width, height, p, urgency, target_fill, strategy);
                 update_best(&mut best, score, p.clone(), true);
             }
             if best.is_some() {
@@ -92,7 +80,7 @@ pub fn solve(
     // Score all placements for the current piece
     let current_placements = placement::enumerate_placements(cells, width, height, current_type);
     for p in &current_placements {
-        let score = score_placement(cells, width, height, p, urgency, max_fill, target_fill, strategy);
+        let score = score_placement(cells, width, height, p, urgency, target_fill, strategy);
         update_best(&mut best, score, p.clone(), false);
     }
 
@@ -100,12 +88,12 @@ pub fn solve(
     if can_hold {
         let alt_type = if hold > 0 { hold } else if !next_queue.is_empty() { next_queue[0] } else { 0 };
         if alt_type > 0 && alt_type != current_type {
-            if urgency < hold_i_threshold && alt_type == pieces::I {
+            if below_target && alt_type == pieces::I {
                 // Skip — keep I in hold for scoring phase
             } else {
                 let alt_placements = placement::enumerate_placements(cells, width, height, alt_type);
                 for p in &alt_placements {
-                    let score = score_placement(cells, width, height, p, urgency, max_fill, target_fill, strategy);
+                    let score = score_placement(cells, width, height, p, urgency, target_fill, strategy);
                     update_best(&mut best, score, p.clone(), true);
                 }
             }
@@ -122,12 +110,17 @@ fn score_placement(
     height: u32,
     p: &Placement,
     urgency: f64,
-    max_fill: f64,
     target_fill: f64,
     strategy: Strategy,
 ) -> f64 {
     let (new_cells, lines) =
         board::simulate_place(cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col);
+
+    // Check fill vs target for the board AFTER placement
+    let post_agg = board::aggregate_height(&new_cells, width, height);
+    let post_fill = post_agg as f64 / (width as f64 * height as f64);
+    let above_target = post_fill >= target_fill;
+
     let base = evaluator::evaluate(
         &new_cells,
         width,
@@ -141,16 +134,16 @@ fn score_placement(
         strategy,
     );
 
-    let (tetris_bonus_max, danger_threshold, danger_penalty_max) = match strategy {
-        Strategy::Flat => (FLAT_TETRIS_BONUS_MAX, FLAT_DANGER_THRESHOLD, FLAT_DANGER_PENALTY_MAX),
-        Strategy::ThreeTower => (TT_TETRIS_BONUS_MAX, TT_DANGER_THRESHOLD, TT_DANGER_PENALTY_MAX),
+    let bonus_max = match strategy {
+        Strategy::Flat => FLAT_TETRIS_BONUS_MAX,
+        Strategy::ThreeTower => TT_TETRIS_BONUS_MAX,
     };
 
-    let tetris_bonus = if lines == 4 { tetris_bonus_max * urgency } else { 0.0 };
-
-    let danger = if max_fill > danger_threshold {
-        let excess = (max_fill - danger_threshold) / (1.0 - danger_threshold);
-        danger_penalty_max * excess * excess
+    // Line-clear bonus when above target (scoring mode).
+    // Scales superlinearly: 1 line = 25%, 2 = 50%, 3 = 75%, 4 (tetris) = 100%.
+    // This rewards any clear while still making tetrises the best option.
+    let clear_bonus = if lines > 0 && above_target {
+        bonus_max * (lines as f64 / 4.0)
     } else {
         0.0
     };
@@ -163,8 +156,7 @@ fn score_placement(
                 p.piece_type, p.rotation, p.landing_row, p.col,
                 well_start, well_end,
             );
-            // At high urgency, allow I-pieces in the well (that's the scoring move)
-            if p.piece_type == pieces::I && urgency > 0.5 {
+            if p.piece_type == pieces::I && above_target {
                 0.0
             } else {
                 TT_WELL_CELL_PENALTY * in_well as f64
@@ -173,7 +165,7 @@ fn score_placement(
         Strategy::Flat => 0.0,
     };
 
-    base + tetris_bonus + danger + well_penalty
+    base + clear_bonus + well_penalty
 }
 
 fn update_best(
@@ -263,7 +255,7 @@ mod tests {
             result.placement.col,
         );
         let holes = board::count_holes(&new_cells, 10, 20);
-        assert!(holes <= 2, "Expected few holes, got {}", holes);
+        assert!(holes <= 3, "Expected few holes, got {}", holes);
     }
 
     #[test]

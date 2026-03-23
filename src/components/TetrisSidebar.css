@@ -70,6 +70,18 @@
   color: #111;
 }
 
+.phase-value {
+  font-size: 14px;
+}
+
+.phase-stacking {
+  color: #2ecc40;
+}
+
+.phase-scoring {
+  color: #f39c12;
+}
+
 .ai-strategy-btn.off-active {
   background: #e74c3c;
   color: #fff;

@@ -8,6 +8,7 @@ import './App.css'
 function App() {
   const [cardFocused, setCardFocused] = useState(true)
   const [gameState, setGameState] = useState(null)
+  const [aiInfo, setAiInfo] = useState(null)
   const [aiStrategy, setAiStrategy] = useState(() =>
     Math.random() < 0.5 ? 'flat' : 'threeTower'
   )
@@ -32,6 +33,7 @@ function App() {
       <TetrisBackground
         active={!cardFocused}
         onStateChange={handleStateChange}
+        onAiInfoChange={setAiInfo}
         aiEnabled={aiEnabled}
         aiStrategy={strategyCode}
         speedMultiplier={speedMultiplier}
@@ -49,6 +51,7 @@ function App() {
             onAiStrategyChange={setAiStrategy}
             speedMultiplier={speedMultiplier}
             onSpeedChange={setSpeedMultiplier}
+            aiInfo={aiInfo}
           />
           <CenterCard onFocusChange={setCardFocused} />
         </>

@@ -8,7 +8,7 @@ import { useAutoSolver } from '../hooks/useAutoSolver.js'
 import { BOARD_HEIGHT } from '../game-engine/types.js'
 import './TetrisBackground.css'
 
-export default function TetrisBackground({ active, onStateChange, aiEnabled = true, aiStrategy = 0, speedMultiplier = 1, targetFillRatio = 0.75 }) {
+export default function TetrisBackground({ active, onStateChange, onAiInfoChange, aiEnabled = true, aiStrategy = 0, speedMultiplier = 1, targetFillRatio = 0.75 }) {
   const canvasRef = useRef(null)
   const stateRef = useRef(null)
   const prevWidthRef = useRef(null)
@@ -63,11 +63,13 @@ export default function TetrisBackground({ active, onStateChange, aiEnabled = tr
   }, [cellSize])
 
   // Auto-solver: controlled by aiEnabled toggle (independent of card focus)
-  const executeSolverMoves = useAutoSolver(stateRef, updateState, aiEnabled, speedMultiplier, targetFillRatio, aiStrategy)
+  const { executeMoves: executeSolverMoves, aiInfoRef } = useAutoSolver(stateRef, updateState, aiEnabled, speedMultiplier, targetFillRatio, aiStrategy)
 
   const onFrame = useCallback((delta) => {
     executeSolverMoves(delta)
-  }, [executeSolverMoves])
+    // Surface AI debug info to parent
+    onAiInfoChange?.(aiInfoRef.current)
+  }, [executeSolverMoves, aiInfoRef, onAiInfoChange])
 
   useGameLoop(stateRef, onTick, onRender, false, onFrame, speedMultiplier)
 
