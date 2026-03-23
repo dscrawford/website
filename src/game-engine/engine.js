@@ -5,6 +5,13 @@ import { createScoring, addLineClears, addSoftDrop, addHardDrop } from './scorin
 
 const NEXT_QUEUE_SIZE = 5
 
+// Number of gravity ticks a piece sits on the ground before locking.
+// Scales naturally with speed: at level 0 (800ms/tick) = ~2.4s, at level 29 (17ms/tick) = ~51ms.
+const LOCK_DELAY_TICKS = 3
+
+// Maximum lock delay resets per piece (moves/rotates while grounded reset the timer).
+const MAX_LOCK_RESETS = 15
+
 function fillQueue(queue) {
   const result = [...queue]
   while (result.length < NEXT_QUEUE_SIZE + 1) {
@@ -34,7 +41,7 @@ function calculateGhostRow(board, piece) {
   return ghostRow
 }
 
-function makeState(board, current, hold, canHold, nextQueue, scoring, gameOver) {
+function makeState(board, current, hold, canHold, nextQueue, scoring, gameOver, lockTimer = 0, lockResets = 0) {
   const ghostRow = gameOver ? current.row : calculateGhostRow(board, current)
   return {
     board: board.cells,
@@ -49,6 +56,8 @@ function makeState(board, current, hold, canHold, nextQueue, scoring, gameOver) 
     linesCleared: scoring.linesCleared,
     gameOver,
     ghostRow,
+    lockTimer,
+    lockResets,
   }
 }
 
@@ -58,6 +67,11 @@ function boardFromState(state) {
 
 function scoringFromState(state) {
   return { score: state.score, level: state.level, linesCleared: state.linesCleared }
+}
+
+function isGrounded(board, piece) {
+  const candidate = { ...piece, row: piece.row + 1 }
+  return checkCollision(board, candidate)
 }
 
 export function createGame(width, height) {
@@ -75,7 +89,11 @@ export function moveLeft(state) {
   const board = boardFromState(state)
   const candidate = { ...state.current, col: state.current.col - 1 }
   if (checkCollision(board, candidate)) return state
-  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false)
+  // Reset lock timer on successful move while grounded (up to max resets)
+  const grounded = isGrounded(board, candidate)
+  const lockTimer = grounded && state.lockResets < MAX_LOCK_RESETS ? 0 : state.lockTimer ?? 0
+  const lockResets = grounded && state.lockResets < MAX_LOCK_RESETS ? (state.lockResets ?? 0) + 1 : (state.lockResets ?? 0)
+  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, lockTimer, lockResets)
 }
 
 export function moveRight(state) {
@@ -83,7 +101,10 @@ export function moveRight(state) {
   const board = boardFromState(state)
   const candidate = { ...state.current, col: state.current.col + 1 }
   if (checkCollision(board, candidate)) return state
-  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false)
+  const grounded = isGrounded(board, candidate)
+  const lockTimer = grounded && state.lockResets < MAX_LOCK_RESETS ? 0 : state.lockTimer ?? 0
+  const lockResets = grounded && state.lockResets < MAX_LOCK_RESETS ? (state.lockResets ?? 0) + 1 : (state.lockResets ?? 0)
+  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, lockTimer, lockResets)
 }
 
 export function rotateClockwise(state) {
@@ -91,7 +112,10 @@ export function rotateClockwise(state) {
   const board = boardFromState(state)
   const result = rotateCW(board, state.current)
   if (result === null) return state
-  return makeState(board, result, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false)
+  const grounded = isGrounded(board, result)
+  const lockTimer = grounded && state.lockResets < MAX_LOCK_RESETS ? 0 : state.lockTimer ?? 0
+  const lockResets = grounded && state.lockResets < MAX_LOCK_RESETS ? (state.lockResets ?? 0) + 1 : (state.lockResets ?? 0)
+  return makeState(board, result, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, lockTimer, lockResets)
 }
 
 export function rotateCounterClockwise(state) {
@@ -99,7 +123,10 @@ export function rotateCounterClockwise(state) {
   const board = boardFromState(state)
   const result = rotateCCW(board, state.current)
   if (result === null) return state
-  return makeState(board, result, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false)
+  const grounded = isGrounded(board, result)
+  const lockTimer = grounded && state.lockResets < MAX_LOCK_RESETS ? 0 : state.lockTimer ?? 0
+  const lockResets = grounded && state.lockResets < MAX_LOCK_RESETS ? (state.lockResets ?? 0) + 1 : (state.lockResets ?? 0)
+  return makeState(board, result, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, lockTimer, lockResets)
 }
 
 function lockAndSpawn(state, board, scoring) {
@@ -112,7 +139,8 @@ function lockAndSpawn(state, board, scoring) {
   const nextPiece = spawnPiece(nextType, cleared.width)
   const gameOver = checkCollision(cleared, nextPiece)
 
-  return makeState(cleared, nextPiece, state.hold, true, queue, newScoring, gameOver)
+  // New piece spawns with fresh lock state
+  return makeState(cleared, nextPiece, state.hold, true, queue, newScoring, gameOver, 0, 0)
 }
 
 export function softDrop(state) {
@@ -120,11 +148,16 @@ export function softDrop(state) {
   const board = boardFromState(state)
   const candidate = { ...state.current, row: state.current.row + 1 }
   if (checkCollision(board, candidate)) {
-    // Lock the piece
-    return lockAndSpawn(state, board, scoringFromState(state))
+    // Grounded — increment lock timer, lock when delay expires
+    const newTimer = (state.lockTimer ?? 0) + 1
+    if (newTimer >= LOCK_DELAY_TICKS) {
+      return lockAndSpawn(state, board, scoringFromState(state))
+    }
+    return makeState(board, state.current, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, newTimer, state.lockResets ?? 0)
   }
   const scoring = addSoftDrop(scoringFromState(state), 1)
-  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoring, false)
+  // Moving down resets lock timer
+  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoring, false, 0, state.lockResets ?? 0)
 }
 
 export function hardDrop(state) {
@@ -148,13 +181,13 @@ export function holdPiece(state) {
     const queue = fillQueue([...state.nextQueue])
     const nextType = queue.shift()
     const nextPiece = spawnPiece(nextType, state.width)
-    return makeState(board, nextPiece, state.current.type, false, queue, scoring, false)
+    return makeState(board, nextPiece, state.current.type, false, queue, scoring, false, 0, 0)
   }
 
   // Swap: current goes to hold, hold comes out
   const newPiece = spawnPiece(state.hold, state.width)
   if (checkCollision(board, newPiece)) return state
-  return makeState(board, newPiece, state.current.type, false, [...state.nextQueue], scoring, false)
+  return makeState(board, newPiece, state.current.type, false, [...state.nextQueue], scoring, false, 0, 0)
 }
 
 export function tick(state) {
@@ -162,9 +195,15 @@ export function tick(state) {
   const board = boardFromState(state)
   const candidate = { ...state.current, row: state.current.row + 1 }
   if (checkCollision(board, candidate)) {
-    return lockAndSpawn(state, board, scoringFromState(state))
+    // Grounded — increment lock timer, lock when delay expires
+    const newTimer = (state.lockTimer ?? 0) + 1
+    if (newTimer >= LOCK_DELAY_TICKS) {
+      return lockAndSpawn(state, board, scoringFromState(state))
+    }
+    return makeState(board, state.current, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, newTimer, state.lockResets ?? 0)
   }
-  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false)
+  // Moving down resets lock timer
+  return makeState(board, candidate, state.hold, state.canHold, [...state.nextQueue], scoringFromState(state), false, 0, state.lockResets ?? 0)
 }
 
 export function resizeBoard(state, newWidth) {
@@ -195,5 +234,5 @@ export function resizeBoard(state, newWidth) {
   const current = { ...state.current, col: state.current.col + offset }
   const scoring = scoringFromState(state)
 
-  return makeState(board, current, state.hold, state.canHold, [...state.nextQueue], scoring, state.gameOver)
+  return makeState(board, current, state.hold, state.canHold, [...state.nextQueue], scoring, state.gameOver, state.lockTimer ?? 0, state.lockResets ?? 0)
 }

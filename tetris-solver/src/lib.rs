@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 /// Solve for the best move sequence given the current game state.
 ///
 /// Returns a Vec<u8> of move opcodes:
-///   0=Left, 1=Right, 2=RotateCW, 3=RotateCCW, 4=HardDrop, 5=Hold
+///   0=Left, 1=Right, 2=RotateCW, 3=RotateCCW, 4=HardDrop, 5=Hold, 6=SoftDrop
 ///
 /// `target_fill_ratio` controls when the AI transitions from stacking to scoring.
 /// 0.75 means the AI stacks to ~75% average fill before prioritizing line clears.
@@ -24,7 +24,7 @@ pub fn solve(
     height: u32,
     current_type: u8,
     _current_rotation: u8,
-    _current_row: i32,
+    current_row: i32,
     _current_col: i32,
     hold: i8,
     can_hold: bool,
@@ -56,8 +56,11 @@ pub fn solve(
             let piece_width = cols.iter().max().unwrap() - cols.iter().min().unwrap() + 1;
             let spawn_col = (width as i32 - piece_width as i32) / 2;
 
-            moves::generate_moves(&r.placement, spawn_col, 0, r.use_hold)
+            // spawn_row is the current piece row (where the bot starts executing from)
+            let spawn_row = current_row;
+
+            moves::generate_moves(&r.placement, spawn_col, 0, spawn_row, r.use_hold)
         }
-        None => vec![moves::HARD_DROP], // fallback: just drop
+        None => vec![moves::SOFT_DROP], // fallback: just drop one row
     }
 }

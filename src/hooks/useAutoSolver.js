@@ -7,6 +7,7 @@ import {
   rotateClockwise,
   rotateCounterClockwise,
   hardDrop,
+  softDrop,
   holdPiece,
   createGame,
 } from '../game-engine/engine-interface.js'
@@ -19,8 +20,9 @@ const OPCODE_CW = 2
 const OPCODE_CCW = 3
 const OPCODE_HARD_DROP = 4
 const OPCODE_HOLD = 5
+const OPCODE_SOFT_DROP = 6
 
-// Per-opcode intervals: horizontal moves are fast, rotations/drops are visible
+// Per-opcode intervals (ms)
 const MOVE_INTERVALS = {
   [OPCODE_LEFT]: 15,
   [OPCODE_RIGHT]: 15,
@@ -28,6 +30,7 @@ const MOVE_INTERVALS = {
   [OPCODE_CCW]: 50,
   [OPCODE_HARD_DROP]: 40,
   [OPCODE_HOLD]: 30,
+  [OPCODE_SOFT_DROP]: 8,
 }
 
 const OPCODE_ACTIONS = {
@@ -37,12 +40,12 @@ const OPCODE_ACTIONS = {
   [OPCODE_CCW]: rotateCounterClockwise,
   [OPCODE_HARD_DROP]: hardDrop,
   [OPCODE_HOLD]: holdPiece,
+  [OPCODE_SOFT_DROP]: softDrop,
 }
 
 export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 1, targetFillRatio = 0.75, strategy = 0) {
   const moveQueueRef = useRef([])
   const readyRef = useRef(false)
-  const lastPieceRef = useRef(null)
   const moveTimerRef = useRef(0)
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
@@ -53,24 +56,28 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
   const strategyRef = useRef(strategy)
   strategyRef.current = strategy
 
-  // Initialize WASM solver on mount (always, regardless of enabled)
+  // Have we solved for the current piece? Reset when a new piece spawns.
+  const hasSolvedRef = useRef(false)
+  // Snapshot taken when moves finish executing (piece at landing position).
+  // When this changes, a new piece has spawned.
+  const waitingSnapRef = useRef(null)
+
+  // Initialize WASM solver on mount
   useEffect(() => {
     initSolver().then((mod) => {
       readyRef.current = mod !== null
-      if (mod) {
-        console.log('WASM Tetris solver loaded')
-      }
+      if (mod) console.log('WASM Tetris solver loaded')
     })
   }, [])
 
-  // Reset move queue when enabled state or strategy changes
+  // Reset when enabled/strategy changes
   useEffect(() => {
     moveQueueRef.current = []
-    lastPieceRef.current = null
+    hasSolvedRef.current = false
+    waitingSnapRef.current = null
     moveTimerRef.current = 0
   }, [enabled, strategy])
 
-  // Execute queued moves at a steady rate (called from game loop)
   const executeMoves = useCallback((deltaMs) => {
     if (!enabledRef.current || !readyRef.current) return
 
@@ -81,40 +88,48 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     if (state.gameOver) {
       updateState(createGame(state.width, BOARD_HEIGHT))
       moveQueueRef.current = []
-      lastPieceRef.current = null
+      hasSolvedRef.current = false
+      waitingSnapRef.current = null
       return
     }
 
-    // Compute moves when we need them
-    if (moveQueueRef.current.length === 0) {
-      const pieceKey = `${state.current.type}-${state.current.col}-${state.current.row}`
-      if (pieceKey !== lastPieceRef.current) {
-        lastPieceRef.current = pieceKey
-        const moves = solveMoves(state, targetFillRef.current, strategyRef.current)
-        if (moves && moves.length > 0) {
-          moveQueueRef.current = moves
-          moveTimerRef.current = 0
-        }
+    // --- Phase 1: Detect new piece spawn ---
+    // When we're waiting for lock (moves done, waiting for gravity to lock piece),
+    // detect the new piece by comparing the current piece state to our snapshot.
+    if (waitingSnapRef.current !== null) {
+      const c = state.current
+      const now = `${c.type}:${c.row}:${c.col}`
+      if (now !== waitingSnapRef.current) {
+        // Piece changed — new spawn detected
+        waitingSnapRef.current = null
+        hasSolvedRef.current = false
+      } else {
+        // Still waiting for lock delay + spawn
+        return
       }
     }
 
-    // Execute moves at per-opcode intervals (or instantly at high speed)
+    // --- Phase 2: Solve once per piece ---
+    if (!hasSolvedRef.current) {
+      hasSolvedRef.current = true
+      const moves = solveMoves(state, targetFillRef.current, strategyRef.current)
+      if (moves && moves.length > 0) {
+        moveQueueRef.current = moves
+        moveTimerRef.current = 0
+      }
+    }
+
+    // --- Phase 3: Execute queued moves ---
     if (moveQueueRef.current.length > 0) {
       const speed = speedRef.current
       if (speed >= 10) {
-        // At 10x+, execute entire move queue instantly — apply all moves
-        // to the state ref but only trigger one React update at the end
-        let state = stateRef.current
+        let s = stateRef.current
         while (moveQueueRef.current.length > 0) {
           const opcode = moveQueueRef.current.shift()
           const action = OPCODE_ACTIONS[opcode]
-          if (action && state) {
-            state = action(state)
-          }
+          if (action && s) s = action(s)
         }
-        if (state !== stateRef.current) {
-          updateState(state)
-        }
+        if (s !== stateRef.current) updateState(s)
       } else {
         moveTimerRef.current += deltaMs
         while (moveQueueRef.current.length > 0) {
@@ -131,9 +146,13 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       }
     }
 
-    // After all moves executed, clear piece key so we recompute for next piece
-    if (moveQueueRef.current.length === 0) {
-      lastPieceRef.current = null
+    // --- Phase 4: All moves done — enter waiting state ---
+    // Snapshot the piece at its landing position. Gravity ticks will handle
+    // lock delay. Once the piece locks and a new one spawns, the snapshot
+    // won't match and we'll solve again (Phase 1).
+    if (moveQueueRef.current.length === 0 && waitingSnapRef.current === null && hasSolvedRef.current) {
+      const c = stateRef.current.current
+      waitingSnapRef.current = `${c.type}:${c.row}:${c.col}`
     }
   }, [stateRef, updateState])
 
