@@ -59,10 +59,8 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
   // Have we solved for the current piece? Reset when a new piece spawns.
   const hasSolvedRef = useRef(false)
   // Snapshot taken when moves finish executing (piece at landing position).
-  // When this changes, a new piece has spawned.
   const waitingSnapRef = useRef(null)
 
-  // Initialize WASM solver on mount
   useEffect(() => {
     initSolver().then((mod) => {
       readyRef.current = mod !== null
@@ -70,7 +68,6 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     })
   }, [])
 
-  // Reset when enabled/strategy changes
   useEffect(() => {
     moveQueueRef.current = []
     hasSolvedRef.current = false
@@ -84,7 +81,6 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     const state = stateRef.current
     if (!state) return
 
-    // Auto-restart on game over
     if (state.gameOver) {
       updateState(createGame(state.width, BOARD_HEIGHT))
       moveQueueRef.current = []
@@ -93,23 +89,57 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       return
     }
 
-    // --- Phase 1: Detect new piece spawn ---
-    // When we're waiting for lock (moves done, waiting for gravity to lock piece),
-    // detect the new piece by comparing the current piece state to our snapshot.
+    const speed = speedRef.current
+
+    // --- HIGH SPEED PATH (>= 10x): solve + execute + hard drop in one frame ---
+    if (speed >= 10) {
+      let s = stateRef.current
+      let iterations = 0
+      const maxIterations = 3
+
+      while (iterations < maxIterations && s && !s.gameOver) {
+        if (moveQueueRef.current.length === 0) {
+          const moves = solveMoves(s, targetFillRef.current, strategyRef.current)
+          if (!moves || moves.length === 0) break
+          moveQueueRef.current = moves
+        }
+
+        // Execute entire move queue (rotations, horizontals, soft drops)
+        while (moveQueueRef.current.length > 0) {
+          const opcode = moveQueueRef.current.shift()
+          const action = OPCODE_ACTIONS[opcode]
+          if (action && s) s = action(s)
+        }
+
+        // Hard drop to instantly lock and spawn next piece
+        if (s && !s.gameOver) {
+          s = hardDrop(s)
+        }
+
+        iterations++
+      }
+
+      if (s && s !== stateRef.current) {
+        updateState(s)
+      }
+      return
+    }
+
+    // --- NORMAL SPEED PATH (< 10x): solve once, execute over time ---
+
+    // Phase 1: Detect new piece spawn
     if (waitingSnapRef.current !== null) {
       const c = state.current
       const now = `${c.type}:${c.row}:${c.col}`
       if (now !== waitingSnapRef.current) {
-        // Piece changed — new spawn detected
         waitingSnapRef.current = null
         hasSolvedRef.current = false
       } else {
-        // Still waiting for lock delay + spawn
-        return
+        return // still waiting for lock + spawn
       }
     }
 
-    // --- Phase 2: Solve once per piece ---
+    // Phase 2: Solve once per piece
     if (!hasSolvedRef.current) {
       hasSolvedRef.current = true
       const moves = solveMoves(state, targetFillRef.current, strategyRef.current)
@@ -119,40 +149,29 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       }
     }
 
-    // --- Phase 3: Execute queued moves ---
+    // Phase 3: Execute queued moves at timed intervals
     if (moveQueueRef.current.length > 0) {
-      const speed = speedRef.current
-      if (speed >= 10) {
-        let s = stateRef.current
-        while (moveQueueRef.current.length > 0) {
-          const opcode = moveQueueRef.current.shift()
-          const action = OPCODE_ACTIONS[opcode]
-          if (action && s) s = action(s)
-        }
-        if (s !== stateRef.current) updateState(s)
-      } else {
-        moveTimerRef.current += deltaMs
-        while (moveQueueRef.current.length > 0) {
-          const nextOpcode = moveQueueRef.current[0]
-          const interval = (MOVE_INTERVALS[nextOpcode] ?? 60) / speed
-          if (moveTimerRef.current < interval) break
-          moveTimerRef.current -= interval
-          const opcode = moveQueueRef.current.shift()
-          const action = OPCODE_ACTIONS[opcode]
-          if (action && stateRef.current) {
-            updateState(action(stateRef.current))
-          }
+      moveTimerRef.current += deltaMs
+      while (moveQueueRef.current.length > 0) {
+        const nextOpcode = moveQueueRef.current[0]
+        const interval = (MOVE_INTERVALS[nextOpcode] ?? 60) / speed
+        if (moveTimerRef.current < interval) break
+        moveTimerRef.current -= interval
+        const opcode = moveQueueRef.current.shift()
+        const action = OPCODE_ACTIONS[opcode]
+        if (action && stateRef.current) {
+          updateState(action(stateRef.current))
         }
       }
     }
 
-    // --- Phase 4: All moves done — enter waiting state ---
-    // Snapshot the piece at its landing position. Gravity ticks will handle
-    // lock delay. Once the piece locks and a new one spawns, the snapshot
-    // won't match and we'll solve again (Phase 1).
-    if (moveQueueRef.current.length === 0 && waitingSnapRef.current === null && hasSolvedRef.current) {
-      const c = stateRef.current.current
-      waitingSnapRef.current = `${c.type}:${c.row}:${c.col}`
+    // Phase 4: All soft drops done — hard drop to lock instantly and move on.
+    // The piece has been soft-dropped to its target position; slam it down.
+    if (moveQueueRef.current.length === 0 && hasSolvedRef.current && waitingSnapRef.current === null) {
+      const locked = hardDrop(stateRef.current)
+      updateState(locked)
+      // New piece spawned — ready to solve next frame
+      hasSolvedRef.current = false
     }
   }, [stateRef, updateState])
 

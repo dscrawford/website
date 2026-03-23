@@ -24,7 +24,7 @@ export function useGameLoop(stateRef, onTick, onRender, paused, onFrame, speedMu
       lastTimeRef.current = timestamp
       accumulatorRef.current += delta
 
-      // Snapshot piece identity before onFrame (solver may hard-drop + spawn new piece)
+      // Snapshot piece identity before onFrame (solver may change piece)
       const pieceBeforeFrame = stateRef.current?.current
 
       // Run per-frame callback (e.g. auto-solver move execution)
@@ -32,7 +32,7 @@ export function useGameLoop(stateRef, onTick, onRender, paused, onFrame, speedMu
         onFrame(delta)
       }
 
-      // If the piece changed (new spawn after hard drop), reset gravity accumulator
+      // If the piece changed during onFrame, reset gravity accumulator
       // so the new piece starts at row 0 without immediate gravity ticks
       const pieceAfterFrame = stateRef.current?.current
       if (pieceBeforeFrame && pieceAfterFrame && pieceBeforeFrame !== pieceAfterFrame) {
@@ -45,9 +45,19 @@ export function useGameLoop(stateRef, onTick, onRender, paused, onFrame, speedMu
         const maxTicks = speedRef.current >= 10 ? 64 : 4
         let tickCount = 0
         while (accumulatorRef.current >= interval && tickCount < maxTicks) {
+          // Snapshot piece before each tick to detect lock+spawn
+          const pieceBefore = stateRef.current?.current
           accumulatorRef.current -= interval
           onTick()
           tickCount++
+
+          // If tick caused a lock+spawn (piece changed), reset accumulator
+          // so the freshly spawned piece doesn't get pushed down by leftover time
+          const pieceAfter = stateRef.current?.current
+          if (pieceBefore && pieceAfter && pieceBefore !== pieceAfter) {
+            accumulatorRef.current = 0
+            break
+          }
         }
         // Discard excess time to prevent catch-up spiral at extreme speeds
         if (tickCount >= maxTicks) {
