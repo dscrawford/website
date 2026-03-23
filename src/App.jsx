@@ -12,7 +12,7 @@ function App() {
   const [aiStrategy, setAiStrategy] = useState(() =>
     Math.random() < 0.5 ? 'flat' : 'fourWide'
   )
-  const [speedMultiplier, setSpeedMultiplier] = useState(2)
+  const [speedMultiplier, setSpeedMultiplier] = useState(1)
   const [uiHidden, setUiHidden] = useState(false)
   const resetRef = useRef(null)
 
