@@ -11,18 +11,18 @@ const W_HOLES: f64 = -7.899265427351652;
 const W_WELL_SUMS: f64 = -3.3855972247263626;
 const W_HEIGHT_GAP: f64 = -8000.0;
 
-// === 3-Tower strategy weights ===
+// === 4-Wide strategy weights ===
 
-const TT_LANDING_HEIGHT: f64 = -4.5;
-const TT_WELL_CLEANLINESS: f64 = 50.0;
-const TT_HOLES: f64 = -10.0;
-const TT_COLUMN_TRANSITIONS: f64 = -6.0;
-const TT_ROW_TRANSITIONS: f64 = -2.0;
-const TT_WELL_SUMS: f64 = -1.0;
-const TT_TOWER_BALANCE: f64 = -4.0;
-const TT_ROWS_STACKING: f64 = -8.0;
-const TT_ROWS_SCORING: f64 = 5.0;
-const TT_HEIGHT_GAP: f64 = -8000.0;
+const FW_LANDING_HEIGHT: f64 = -4.5;
+const FW_WELL_CLEANLINESS: f64 = 50.0;
+const FW_HOLES: f64 = -10.0;
+const FW_COLUMN_TRANSITIONS: f64 = -6.0;
+const FW_ROW_TRANSITIONS: f64 = -2.0;
+const FW_WELL_SUMS: f64 = -1.0;
+const FW_TOWER_BALANCE: f64 = -4.0;
+const FW_ROWS_STACKING: f64 = -20.0;
+const FW_ROWS_SCORING: f64 = 30.0;
+const FW_HEIGHT_GAP: f64 = -8000.0;
 
 /// Evaluate a board state after placement, dispatching on strategy.
 pub fn evaluate(
@@ -42,7 +42,7 @@ pub fn evaluate(
             cells, width, height, lines_cleared, landing_row,
             piece_type, rotation, scoring_urgency, target_fill,
         ),
-        Strategy::ThreeTower => evaluate_three_tower(
+        Strategy::FourWide => evaluate_four_wide(
             cells, width, height, lines_cleared, landing_row,
             piece_type, rotation, scoring_urgency, target_fill,
         ),
@@ -105,8 +105,9 @@ fn evaluate_flat(
     }
 }
 
-/// 3-Tower strategy: rewards keeping a centered 4-wide well clear while building towers.
-fn evaluate_three_tower(
+/// 4-Wide strategy: rewards keeping a centered 4-wide well clear while building towers.
+/// Uses the same binary stacking/scoring approach as flat, with tower-specific metrics.
+fn evaluate_four_wide(
     cells: &[u8],
     width: u32,
     height: u32,
@@ -114,7 +115,7 @@ fn evaluate_three_tower(
     landing_row: i32,
     piece_type: u8,
     rotation: u8,
-    scoring_urgency: f64,
+    _scoring_urgency: f64,
     target_fill: f64,
 ) -> f64 {
     let landing_height = compute_landing_height(height, landing_row, piece_type, rotation);
@@ -124,15 +125,6 @@ fn evaluate_three_tower(
     let well_filled = board::well_fill_count(cells, width, height, well_start, well_end);
     let well_clean_ratio = 1.0 - (well_filled as f64 / well_area as f64);
 
-    // How many cells of the placed piece landed in the well (computed from landing position)
-    let cells_in_well = board::placement_cells_in_well(
-        piece_type, rotation, landing_row, 0, // col not available here; handled in solver
-        well_start, well_end,
-    );
-    // We don't have placement col here — the well cell penalty is applied in the solver
-    // via a separate check. Here we focus on board-state metrics.
-    let _ = cells_in_well;
-
     let holes = board::count_holes(cells, width, height) as f64;
     let col_trans = board::column_transitions(cells, width, height) as f64;
     let row_trans = board::row_transitions(cells, width, height) as f64;
@@ -141,21 +133,36 @@ fn evaluate_three_tower(
     let (left_avg, right_avg) = board::tower_zone_avg_heights(cells, width, height, well_start, well_end);
     let balance_penalty = (left_avg - right_avg).abs();
 
-    let rows_removed_weight = TT_ROWS_STACKING + (TT_ROWS_SCORING - TT_ROWS_STACKING) * scoring_urgency;
-
     let avg_fill = board::aggregate_height(cells, width, height) as f64 / (width as f64 * height as f64);
-    let deviation = (avg_fill - target_fill).abs();
-    let target_penalty = TT_HEIGHT_GAP * deviation * deviation;
+    let below_target = avg_fill < target_fill;
 
-    TT_LANDING_HEIGHT * landing_height
-        + TT_WELL_CLEANLINESS * well_clean_ratio
-        + TT_HOLES * holes
-        + TT_COLUMN_TRANSITIONS * col_trans
-        + TT_ROW_TRANSITIONS * row_trans
-        + TT_WELL_SUMS * wells
-        + TT_TOWER_BALANCE * balance_penalty
-        + rows_removed_weight * lines_cleared as f64
-        + target_penalty
+    // Symmetric distance-from-target penalty
+    let deviation = (avg_fill - target_fill).abs();
+    let target_penalty = FW_HEIGHT_GAP * deviation * deviation;
+
+    if below_target {
+        // STACKING: build towers, keep well clear, penalize line clears
+        FW_LANDING_HEIGHT * 0.2 * landing_height
+            + FW_WELL_CLEANLINESS * well_clean_ratio
+            + FW_HOLES * holes
+            + FW_COLUMN_TRANSITIONS * col_trans
+            + FW_ROW_TRANSITIONS * row_trans
+            + FW_WELL_SUMS * wells
+            + FW_TOWER_BALANCE * balance_penalty
+            + FW_ROWS_STACKING * lines_cleared as f64
+            + target_penalty
+    } else {
+        // SCORING: aggressively clear lines, relax quality weights
+        FW_LANDING_HEIGHT * landing_height
+            + FW_WELL_CLEANLINESS * well_clean_ratio * 0.3
+            + FW_HOLES * holes * 0.5
+            + FW_COLUMN_TRANSITIONS * col_trans * 0.3
+            + FW_ROW_TRANSITIONS * row_trans * 0.3
+            + FW_WELL_SUMS * wells * 0.3
+            + FW_TOWER_BALANCE * balance_penalty * 0.3
+            + FW_ROWS_SCORING * lines_cleared as f64
+            + target_penalty
+    }
 }
 
 /// Compute landing height as the midpoint of the piece's vertical extent,
@@ -275,10 +282,10 @@ mod tests {
         assert!(score_full > score_empty);
     }
 
-    // === 3-Tower strategy tests ===
+    // === 4-Wide strategy tests ===
 
     #[test]
-    fn three_tower_clean_well_scores_higher() {
+    fn four_wide_clean_well_scores_higher() {
         // Same total fill, but one has pieces in the well and the other in tower zones.
         // Clean: pieces in tower columns (0-2), well (3-6) empty
         let mut clean = empty_board(10, 20);
@@ -290,13 +297,13 @@ mod tests {
         for c in 3..6 {
             set_cell(&mut dirty, 10, 19, c, I);
         }
-        let score_clean = evaluate(&clean, 10, 20, 0, 18, T, 0, 0.5, 0.85, Strategy::ThreeTower);
-        let score_dirty = evaluate(&dirty, 10, 20, 0, 18, T, 0, 0.5, 0.85, Strategy::ThreeTower);
+        let score_clean = evaluate(&clean, 10, 20, 0, 18, T, 0, 0.5, 0.85, Strategy::FourWide);
+        let score_dirty = evaluate(&dirty, 10, 20, 0, 18, T, 0, 0.5, 0.85, Strategy::FourWide);
         assert!(score_clean > score_dirty, "Clean well ({}) should score higher than dirty well ({})", score_clean, score_dirty);
     }
 
     #[test]
-    fn three_tower_balanced_towers_preferred() {
+    fn four_wide_balanced_towers_preferred() {
         // Balanced: both sides have height 3 (18 cells total)
         let mut balanced = empty_board(10, 20);
         for r in 17..20 {
@@ -311,31 +318,32 @@ mod tests {
         for c in 7..10 { set_cell(&mut unbalanced, 10, 19, c, I); }
 
         // Use high urgency so height-gap penalty is zero for both
-        let score_bal = evaluate(&balanced, 10, 20, 0, 16, T, 0, 1.0, 0.85, Strategy::ThreeTower);
-        let score_unbal = evaluate(&unbalanced, 10, 20, 0, 14, T, 0, 1.0, 0.85, Strategy::ThreeTower);
+        let score_bal = evaluate(&balanced, 10, 20, 0, 16, T, 0, 1.0, 0.85, Strategy::FourWide);
+        let score_unbal = evaluate(&unbalanced, 10, 20, 0, 14, T, 0, 1.0, 0.85, Strategy::FourWide);
         assert!(score_bal > score_unbal, "Balanced ({}) should beat unbalanced ({})", score_bal, score_unbal);
     }
 
     #[test]
-    fn three_tower_stacking_penalizes_clears() {
+    fn four_wide_stacking_penalizes_clears() {
         let cells = empty_board(10, 20);
-        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 0.0, 0.85, Strategy::ThreeTower);
-        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.0, 0.85, Strategy::ThreeTower);
+        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 0.0, 0.85, Strategy::FourWide);
+        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 0.0, 0.85, Strategy::FourWide);
         assert!(score_0 > score_1, "During stacking, no clears ({}) should beat clears ({})", score_0, score_1);
     }
 
     #[test]
-    fn three_tower_scoring_rewards_clears() {
+    fn four_wide_scoring_rewards_clears() {
+        // Use target 0.0 so empty board is "above target" → scoring mode
         let cells = empty_board(10, 20);
-        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.85, Strategy::ThreeTower);
-        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 1.0, 0.85, Strategy::ThreeTower);
+        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::FourWide);
+        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 1.0, 0.0, Strategy::FourWide);
         assert!(score_1 > score_0, "During scoring, clears ({}) should beat no clears ({})", score_1, score_0);
     }
 
     #[test]
-    fn three_tower_works_on_wide_board() {
+    fn four_wide_works_on_wide_board() {
         let cells = empty_board(40, 40);
-        let score = evaluate(&cells, 40, 40, 0, 38, T, 0, 0.5, 0.85, Strategy::ThreeTower);
+        let score = evaluate(&cells, 40, 40, 0, 38, T, 0, 0.5, 0.85, Strategy::FourWide);
         assert!(score.is_finite());
     }
 }

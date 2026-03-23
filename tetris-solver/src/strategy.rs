@@ -4,14 +4,14 @@
 pub enum Strategy {
     /// Keep the board flat, grow to target fill, then clear lines.
     Flat = 0,
-    /// Build 3-column towers flanking a 4-wide centered well.
-    ThreeTower = 1,
+    /// 4-wide well strategy: build towers flanking a 4-column centered well.
+    FourWide = 1,
 }
 
 impl Strategy {
     pub fn from_u8(v: u8) -> Self {
         match v {
-            1 => Strategy::ThreeTower,
+            1 => Strategy::FourWide,
             _ => Strategy::Flat,
         }
     }
@@ -27,8 +27,8 @@ mod tests {
     }
 
     #[test]
-    fn from_u8_three_tower() {
-        assert_eq!(Strategy::from_u8(1), Strategy::ThreeTower);
+    fn from_u8_four_wide() {
+        assert_eq!(Strategy::from_u8(1), Strategy::FourWide);
     }
 
     #[test]

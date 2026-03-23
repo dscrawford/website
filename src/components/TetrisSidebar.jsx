@@ -80,7 +80,7 @@ function SpeedInput({ value, onChange }) {
 
 const STRATEGY_OPTIONS = [
   ['flat', 'FLAT'],
-  ['threeTower', '3-TOWER'],
+  ['fourWide', '4-WIDE'],
   ['off', 'OFF'],
 ]
 

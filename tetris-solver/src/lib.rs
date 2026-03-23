@@ -16,7 +16,7 @@ use wasm_bindgen::prelude::*;
 /// `target_fill_ratio` controls when the AI transitions from stacking to scoring.
 /// 0.75 means the AI stacks to ~75% average fill before prioritizing line clears.
 ///
-/// `strategy` selects the AI personality: 0=Flat, 1=ThreeTower.
+/// `strategy` selects the AI personality: 0=Flat, 1=FourWide.
 #[wasm_bindgen]
 pub fn solve(
     board_cells: &[u8],

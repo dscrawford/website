@@ -273,7 +273,7 @@ pub fn well_sums(cells: &[u8], width: u32, height: u32) -> u32 {
     sums
 }
 
-// --- 3-Tower strategy helpers ---
+// --- 4-Wide strategy helpers ---
 
 /// Returns the inclusive (start, end) column range of the centered 4-wide well.
 /// For width=10: (3, 6). For width=20: (8, 11).
@@ -733,7 +733,7 @@ mod tests {
         assert_eq!(well_sums(&cells, 10, 20), 1);
     }
 
-    // -- 3-Tower helper tests --
+    // -- 4-Wide helper tests --
 
     #[test]
     fn well_column_range_width_10() {

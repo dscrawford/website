@@ -19,11 +19,11 @@ const SIGMOID_K: f64 = 10.0;
 // Flat strategy
 const FLAT_TETRIS_BONUS_MAX: f64 = 80.0;
 
-// 3-Tower strategy
-const TT_TETRIS_BONUS_MAX: f64 = 80.0;
-const TT_TARGET_FILL_OVERRIDE: f64 = 0.85;
-const TT_WELL_CELL_PENALTY: f64 = -8.0;
-const TT_MIN_WIDTH: u32 = 10;
+// 4-Wide strategy
+const FW_TETRIS_BONUS_MAX: f64 = 80.0;
+// 4-Wide no longer overrides target — JS hysteresis controls it
+const FW_WELL_CELL_PENALTY: f64 = -8.0;
+const FW_MIN_WIDTH: u32 = 10;
 
 /// Compute scoring urgency as a sigmoid of average fill vs target.
 fn scoring_urgency(avg_fill: f64, target_fill: f64) -> f64 {
@@ -42,17 +42,14 @@ pub fn solve(
     target_fill_ratio: f64,
     strategy: Strategy,
 ) -> Option<SolveResult> {
-    // Fall back to Flat if board is too narrow for 3-tower
-    let strategy = if strategy == Strategy::ThreeTower && width < TT_MIN_WIDTH {
+    // Fall back to Flat if board is too narrow for 4-wide
+    let strategy = if strategy == Strategy::FourWide && width < FW_MIN_WIDTH {
         Strategy::Flat
     } else {
         strategy
     };
 
-    let target_fill = match strategy {
-        Strategy::ThreeTower => TT_TARGET_FILL_OVERRIDE,
-        Strategy::Flat => target_fill_ratio,
-    };
+    let target_fill = target_fill_ratio;
 
     let agg_h = board::aggregate_height(cells, width, height);
     let avg_fill = agg_h as f64 / (width as f64 * height as f64);
@@ -136,7 +133,7 @@ fn score_placement(
 
     let bonus_max = match strategy {
         Strategy::Flat => FLAT_TETRIS_BONUS_MAX,
-        Strategy::ThreeTower => TT_TETRIS_BONUS_MAX,
+        Strategy::FourWide => FW_TETRIS_BONUS_MAX,
     };
 
     // Line-clear bonus when above target (scoring mode).
@@ -148,9 +145,9 @@ fn score_placement(
         0.0
     };
 
-    // 3-Tower: penalize placements that put cells in the well zone
+    // 4-Wide: penalize placements that put cells in the well zone
     let well_penalty = match strategy {
-        Strategy::ThreeTower => {
+        Strategy::FourWide => {
             let (well_start, well_end) = board::well_column_range(width);
             let in_well = board::placement_cells_in_well(
                 p.piece_type, p.rotation, p.landing_row, p.col,
@@ -159,7 +156,7 @@ fn score_placement(
             if p.piece_type == pieces::I && above_target {
                 0.0
             } else {
-                TT_WELL_CELL_PENALTY * in_well as f64
+                FW_WELL_CELL_PENALTY * in_well as f64
             }
         }
         Strategy::Flat => 0.0,
@@ -282,19 +279,19 @@ mod tests {
         assert!(high > 0.85, "Expected high urgency, got {}", high);
     }
 
-    // === 3-Tower strategy tests ===
+    // === 4-Wide strategy tests ===
 
     #[test]
-    fn three_tower_returns_some_on_empty_board() {
+    fn four_wide_returns_some_on_empty_board() {
         let cells = empty_board(10, 20);
-        let result = solve(&cells, 10, 20, T, 0, true, &[I, S, Z], 0.75, Strategy::ThreeTower);
+        let result = solve(&cells, 10, 20, T, 0, true, &[I, S, Z], 0.75, Strategy::FourWide);
         assert!(result.is_some());
     }
 
     #[test]
-    fn three_tower_avoids_well_columns() {
+    fn four_wide_avoids_well_columns() {
         let cells = empty_board(10, 20);
-        let result = solve(&cells, 10, 20, T, 0, false, &[], 0.75, Strategy::ThreeTower).unwrap();
+        let result = solve(&cells, 10, 20, T, 0, false, &[], 0.75, Strategy::FourWide).unwrap();
         // T piece should avoid well columns 3-6
         let shape = pieces::get_shape(result.placement.piece_type, result.placement.rotation);
         let _in_well = shape.iter().any(|&(_, dc)| {
@@ -307,25 +304,25 @@ mod tests {
     }
 
     #[test]
-    fn three_tower_holds_i_piece_longer() {
+    fn four_wide_holds_i_piece_longer() {
         let cells = empty_board(10, 20);
-        // ThreeTower has higher hold threshold (0.5 vs 0.3)
-        let result = solve(&cells, 10, 20, I, 0, true, &[T, S], 0.75, Strategy::ThreeTower).unwrap();
-        assert!(result.use_hold, "Expected I piece to be held during 3-tower stacking");
+        // FourWide has higher hold threshold (0.5 vs 0.3)
+        let result = solve(&cells, 10, 20, I, 0, true, &[T, S], 0.75, Strategy::FourWide).unwrap();
+        assert!(result.use_hold, "Expected I piece to be held during 4-wide stacking");
     }
 
     #[test]
-    fn three_tower_falls_back_on_narrow_board() {
+    fn four_wide_falls_back_on_narrow_board() {
         // Width 8 < 10 minimum — should fall back to Flat behavior
         let cells = empty_board(8, 20);
-        let result = solve(&cells, 8, 20, T, 0, false, &[], 0.75, Strategy::ThreeTower);
+        let result = solve(&cells, 8, 20, T, 0, false, &[], 0.75, Strategy::FourWide);
         assert!(result.is_some());
     }
 
     #[test]
-    fn three_tower_works_on_wide_board() {
+    fn four_wide_works_on_wide_board() {
         let cells = empty_board(40, 40);
-        let result = solve(&cells, 40, 40, T, 0, true, &[I, S], 0.75, Strategy::ThreeTower);
+        let result = solve(&cells, 40, 40, T, 0, true, &[I, S], 0.75, Strategy::FourWide);
         assert!(result.is_some());
     }
 }

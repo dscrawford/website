@@ -10,14 +10,14 @@ function App() {
   const [gameState, setGameState] = useState(null)
   const [aiInfo, setAiInfo] = useState(null)
   const [aiStrategy, setAiStrategy] = useState(() =>
-    Math.random() < 0.5 ? 'flat' : 'threeTower'
+    Math.random() < 0.5 ? 'flat' : 'fourWide'
   )
   const [speedMultiplier, setSpeedMultiplier] = useState(2)
   const [uiHidden, setUiHidden] = useState(false)
   const resetRef = useRef(null)
 
   const aiEnabled = aiStrategy !== 'off'
-  const strategyCode = aiStrategy === 'threeTower' ? 1 : 0
+  const strategyCode = aiStrategy === 'fourWide' ? 1 : 0
 
   const handleStateChange = useCallback((state) => {
     setGameState(state)
