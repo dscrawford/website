@@ -46,6 +46,91 @@ pub fn enumerate_placements(
     placements
 }
 
+/// Enumerate placements only within a column window around existing structures.
+/// For wide boards, this avoids evaluating thousands of empty-column placements.
+///
+/// The window is determined by finding the leftmost and rightmost occupied columns,
+/// then expanding by `margin` columns on each side (minimum 10 columns total).
+/// Falls back to full enumeration for narrow boards (width <= 20).
+pub fn enumerate_placements_windowed(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    piece_type: u8,
+) -> Vec<Placement> {
+    // For narrow boards, full enumeration is fine
+    if width <= 20 {
+        return enumerate_placements(cells, width, height, piece_type);
+    }
+
+    let w = width as usize;
+    let h = height as usize;
+
+    // Find leftmost and rightmost occupied columns
+    let mut left_bound = w;
+    let mut right_bound = 0usize;
+    let mut has_pieces = false;
+
+    for col in 0..w {
+        for row in 0..h {
+            if cells[row * w + col] != 0 {
+                if col < left_bound {
+                    left_bound = col;
+                }
+                if col > right_bound {
+                    right_bound = col;
+                }
+                has_pieces = true;
+                break; // Found in this column, move to next
+            }
+        }
+    }
+
+    if !has_pieces {
+        // Empty board: just search near center with margin
+        let center = w / 2;
+        let margin = 10;
+        left_bound = center.saturating_sub(margin);
+        right_bound = (center + margin).min(w - 1);
+    } else {
+        // Expand window by margin around occupied area
+        let margin = 8;
+        left_bound = left_bound.saturating_sub(margin);
+        right_bound = (right_bound + margin).min(w - 1);
+    }
+
+    let mut placements = Vec::new();
+
+    for rotation in 0..4u8 {
+        let min_c = pieces::min_col_offset(piece_type, rotation) as i32;
+        let max_c = pieces::max_col_offset(piece_type, rotation) as i32;
+
+        let full_start = -min_c;
+        let full_end = width as i32 - max_c;
+
+        // Restrict to window
+        let col_start = (left_bound as i32 - max_c).max(full_start);
+        let col_end = (right_bound as i32 - min_c + 1).min(full_end);
+
+        for col in col_start..col_end {
+            if board::check_collision(cells, width, height, piece_type, rotation, 0, col) {
+                continue;
+            }
+
+            let landing_row = board::drop_row(cells, width, height, piece_type, rotation, col);
+
+            placements.push(Placement {
+                piece_type,
+                rotation,
+                col,
+                landing_row,
+            });
+        }
+    }
+
+    placements
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

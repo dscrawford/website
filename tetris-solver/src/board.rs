@@ -359,6 +359,529 @@ pub fn max_height(cells: &[u8], width: u32, height: u32) -> u32 {
     max
 }
 
+// === Optimized single-pass metrics for evolution ===
+
+/// All board metrics computed in a single pass (or minimal passes).
+/// Avoids 5-7 separate O(w*h) scans per placement.
+#[derive(Debug, Clone, Default)]
+pub struct BoardMetrics {
+    pub row_transitions: u32,
+    pub column_transitions: u32,
+    pub holes: u32,
+    pub well_sums: u32,
+    pub aggregate_height: u32,
+    // 4-Wide extras
+    pub well_fill_count: u32,
+    pub left_tower_avg_height: f64,
+    pub right_tower_avg_height: f64,
+}
+
+/// Compute all board metrics in a single column-major pass.
+/// This replaces 5-7 separate board scans with 1-2 passes.
+pub fn compute_all_metrics(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    well_start: u32,
+    well_end: u32,
+) -> BoardMetrics {
+    let w = width as usize;
+    let h = height as usize;
+
+    let mut row_trans = 0u32;
+    let mut col_trans = 0u32;
+    let mut holes = 0u32;
+    let mut well_sum = 0u32;
+    let mut agg_height = 0u32;
+    let mut well_fill = 0u32;
+    let mut left_height_sum = 0u32;
+    let mut right_height_sum = 0u32;
+
+    // Pre-compute column heights in one pass (column-major)
+    // Also compute holes, column_transitions, and aggregate_height per column
+    let mut col_heights = vec![0u32; w];
+
+    for col in 0..w {
+        let mut found_filled = false;
+        let mut height_set = false;
+
+        // Ceiling (empty) to first row transition
+        if cells[col] != EMPTY {
+            col_trans += 1;
+        }
+
+        for row in 0..h {
+            let cell = cells[row * w + col];
+            let is_filled = cell != EMPTY;
+
+            // Column height: first filled from top
+            if is_filled && !height_set {
+                col_heights[col] = height - row as u32;
+                height_set = true;
+            }
+
+            // Holes
+            if is_filled {
+                found_filled = true;
+            } else if found_filled {
+                holes += 1;
+            }
+
+            // Column transitions (interior)
+            if row > 0 {
+                let prev = cells[(row - 1) * w + col];
+                if (prev == EMPTY) != (cell == EMPTY) {
+                    col_trans += 1;
+                }
+            }
+
+            // Well fill count (4-wide)
+            if is_filled && (col as u32) >= well_start && (col as u32) <= well_end {
+                well_fill += 1;
+            }
+        }
+
+        // Floor transition
+        if cells[(h - 1) * w + col] == EMPTY {
+            col_trans += 1;
+        }
+
+        agg_height += col_heights[col];
+
+        // Tower zone heights
+        if (col as u32) < well_start {
+            left_height_sum += col_heights[col];
+        } else if (col as u32) > well_end {
+            right_height_sum += col_heights[col];
+        }
+    }
+
+    // Row transitions (row-major pass — needed because row-major != column-major)
+    for row in 0..h {
+        let start = row * w;
+        if cells[start] == EMPTY {
+            row_trans += 1;
+        }
+        for col in 1..w {
+            let prev = cells[start + col - 1];
+            let curr = cells[start + col];
+            if (prev == EMPTY) != (curr == EMPTY) {
+                row_trans += 1;
+            }
+        }
+        if cells[start + w - 1] == EMPTY {
+            row_trans += 1;
+        }
+    }
+
+    // Well sums using pre-computed column heights to skip empty upper regions
+    for col in 0..w {
+        let ch = col_heights[col] as usize;
+        if ch == 0 {
+            continue; // Empty column — can only be a well if both neighbors are filled
+        }
+        let start_row = h - ch;
+        // Also check from the row above the column height (wells can start above)
+        let scan_start = if start_row > 0 { start_row - 1 } else { 0 };
+
+        for row in scan_start..h {
+            let cell = cells[row * w + col];
+            if cell != EMPTY {
+                continue;
+            }
+            let left_filled = col == 0 || cells[row * w + col - 1] != EMPTY;
+            let right_filled = col == w - 1 || cells[row * w + col + 1] != EMPTY;
+
+            if left_filled && right_filled {
+                let mut depth = 1u32;
+                for r in (row + 1)..h {
+                    if cells[r * w + col] != EMPTY {
+                        break;
+                    }
+                    let lf = col == 0 || cells[r * w + col - 1] != EMPTY;
+                    let rf = col == w - 1 || cells[r * w + col + 1] != EMPTY;
+                    if lf && rf {
+                        depth += 1;
+                    } else {
+                        break;
+                    }
+                }
+                well_sum += depth;
+            }
+        }
+    }
+
+    // But we also need to handle wells in completely empty columns flanked by filled ones
+    for col in 0..w {
+        if col_heights[col] > 0 {
+            continue; // Already handled above
+        }
+        for row in 0..h {
+            let left_filled = col == 0 || cells[row * w + col - 1] != EMPTY;
+            let right_filled = col == w - 1 || cells[row * w + col + 1] != EMPTY;
+            if left_filled && right_filled {
+                let mut depth = 1u32;
+                for r in (row + 1)..h {
+                    if cells[r * w + col] != EMPTY {
+                        break;
+                    }
+                    let lf = col == 0 || cells[r * w + col - 1] != EMPTY;
+                    let rf = col == w - 1 || cells[r * w + col + 1] != EMPTY;
+                    if lf && rf {
+                        depth += 1;
+                    } else {
+                        break;
+                    }
+                }
+                well_sum += depth;
+            }
+        }
+    }
+
+    let left_cols = well_start;
+    let right_cols = width - well_end - 1;
+
+    BoardMetrics {
+        row_transitions: row_trans,
+        column_transitions: col_trans,
+        holes,
+        well_sums: well_sum,
+        aggregate_height: agg_height,
+        well_fill_count: well_fill,
+        left_tower_avg_height: if left_cols > 0 {
+            left_height_sum as f64 / left_cols as f64
+        } else {
+            0.0
+        },
+        right_tower_avg_height: if right_cols > 0 {
+            right_height_sum as f64 / right_cols as f64
+        } else {
+            0.0
+        },
+    }
+}
+
+/// Compute board metrics only within a column window [col_min, col_max] inclusive.
+/// Columns outside this range are assumed empty and their contributions are computed
+/// analytically, avoiding the full board scan.
+pub fn compute_metrics_windowed(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    well_start: u32,
+    well_end: u32,
+    col_min: u32,
+    col_max: u32,
+) -> BoardMetrics {
+    let w = width as usize;
+    let h = height as usize;
+    let cmin = col_min as usize;
+    let cmax = (col_max as usize).min(w - 1);
+
+    let mut row_trans = 0u32;
+    let mut col_trans = 0u32;
+    let mut holes = 0u32;
+    let mut well_sum = 0u32;
+    let mut agg_height = 0u32;
+    let mut well_fill = 0u32;
+    let mut left_height_sum = 0u32;
+    let mut right_height_sum = 0u32;
+
+    // Column-major pass over the active window
+    let mut col_heights = vec![0u32; w];
+
+    for col in cmin..=cmax {
+        let mut found_filled = false;
+        let mut height_set = false;
+
+        if cells[col] != EMPTY {
+            col_trans += 1;
+        }
+
+        for row in 0..h {
+            let cell = cells[row * w + col];
+            let is_filled = cell != EMPTY;
+
+            if is_filled && !height_set {
+                col_heights[col] = height - row as u32;
+                height_set = true;
+            }
+
+            if is_filled {
+                found_filled = true;
+            } else if found_filled {
+                holes += 1;
+            }
+
+            if row > 0 {
+                let prev = cells[(row - 1) * w + col];
+                if (prev == EMPTY) != (cell == EMPTY) {
+                    col_trans += 1;
+                }
+            }
+
+            if is_filled && (col as u32) >= well_start && (col as u32) <= well_end {
+                well_fill += 1;
+            }
+        }
+
+        if cells[(h - 1) * w + col] == EMPTY {
+            col_trans += 1;
+        }
+
+        agg_height += col_heights[col];
+
+        if (col as u32) < well_start {
+            left_height_sum += col_heights[col];
+        } else if (col as u32) > well_end {
+            right_height_sum += col_heights[col];
+        }
+    }
+
+    // Empty columns outside window: each contributes 1 col_transition (floor)
+    let empty_cols_left = cmin;
+    let empty_cols_right = if cmax < w - 1 { w - 1 - cmax } else { 0 };
+    col_trans += (empty_cols_left + empty_cols_right) as u32;
+
+    // Row transitions: row-major pass over active window only
+    for row in 0..h {
+        let start = row * w;
+
+        // Left wall to first cell
+        if cmin == 0 {
+            if cells[start] == EMPTY {
+                row_trans += 1;
+            }
+        } else {
+            // Wall → empty gap → first active cell
+            // wall(filled) → col0(empty) = 1 transition
+            // empty gap has no internal transitions
+            // last empty col → first active col
+            row_trans += 1; // wall → empty
+            if cells[start + cmin] != EMPTY {
+                row_trans += 1; // empty → filled at cmin
+            }
+        }
+
+        // Interior transitions within window
+        for col in (cmin + 1)..=cmax {
+            let prev = cells[start + col - 1];
+            let curr = cells[start + col];
+            if (prev == EMPTY) != (curr == EMPTY) {
+                row_trans += 1;
+            }
+        }
+
+        // Right side
+        if cmax == w - 1 {
+            if cells[start + w - 1] == EMPTY {
+                row_trans += 1;
+            }
+        } else {
+            // active window end → empty gap → wall
+            if cells[start + cmax] != EMPTY {
+                row_trans += 1; // filled → empty at cmax+1
+            }
+            row_trans += 1; // empty → wall
+        }
+    }
+
+    // Well sums within active window
+    for col in cmin..=cmax {
+        let ch = col_heights[col] as usize;
+        let scan_start = if ch > 0 {
+            let sr = h - ch;
+            if sr > 0 { sr - 1 } else { 0 }
+        } else {
+            0
+        };
+
+        for row in scan_start..h {
+            let cell = cells[row * w + col];
+            if cell != EMPTY {
+                continue;
+            }
+            let left_filled = col == 0 || cells[row * w + col - 1] != EMPTY;
+            let right_filled = col == w - 1 || cells[row * w + col + 1] != EMPTY;
+
+            if left_filled && right_filled {
+                let mut depth = 1u32;
+                for r in (row + 1)..h {
+                    if cells[r * w + col] != EMPTY {
+                        break;
+                    }
+                    let lf = col == 0 || cells[r * w + col - 1] != EMPTY;
+                    let rf = col == w - 1 || cells[r * w + col + 1] != EMPTY;
+                    if lf && rf {
+                        depth += 1;
+                    } else {
+                        break;
+                    }
+                }
+                well_sum += depth;
+            }
+        }
+    }
+
+    let left_cols = well_start;
+    let right_cols = width - well_end - 1;
+
+    BoardMetrics {
+        row_transitions: row_trans,
+        column_transitions: col_trans,
+        holes,
+        well_sums: well_sum,
+        aggregate_height: agg_height,
+        well_fill_count: well_fill,
+        left_tower_avg_height: if left_cols > 0 {
+            left_height_sum as f64 / left_cols as f64
+        } else {
+            0.0
+        },
+        right_tower_avg_height: if right_cols > 0 {
+            right_height_sum as f64 / right_cols as f64
+        } else {
+            0.0
+        },
+    }
+}
+
+/// Place a piece into a pre-allocated buffer, avoiding allocation.
+/// `buf` must be at least `width * height` bytes. Returns lines cleared.
+/// The buffer is overwritten with the new board state.
+pub fn simulate_place_into(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    piece_type: u8,
+    rotation: u8,
+    row: i32,
+    col: i32,
+    buf: &mut Vec<u8>,
+) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    let size = w * h;
+
+    buf.clear();
+    buf.extend_from_slice(&cells[..size]);
+
+    let shape = pieces::get_shape(piece_type, rotation);
+    for &(dr, dc) in shape.iter() {
+        let r = (row + dr as i32) as usize;
+        let c = (col + dc as i32) as usize;
+        if r < h && c < w {
+            buf[r * w + c] = piece_type;
+        }
+    }
+
+    // Find full rows — only check rows the piece touches
+    let min_row = shape.iter().map(|&(dr, _)| (row + dr as i32).max(0) as usize).min().unwrap_or(0);
+    let max_row = shape.iter().map(|&(dr, _)| (row + dr as i32) as usize).max().unwrap_or(0).min(h - 1);
+
+    let mut full_rows = Vec::new();
+    for r in min_row..=max_row {
+        let start = r * w;
+        if buf[start..start + w].iter().all(|&v| v != EMPTY) {
+            full_rows.push(r);
+        }
+    }
+
+    if full_rows.is_empty() {
+        return 0;
+    }
+
+    let lines_cleared = full_rows.len() as u32;
+
+    // Compact: copy non-full rows to bottom
+    let mut result = vec![EMPTY; size];
+    let mut dest_row = h - 1;
+    for src_row in (0..h).rev() {
+        if full_rows.contains(&src_row) {
+            continue;
+        }
+        let src_start = src_row * w;
+        let dest_start = dest_row * w;
+        result[dest_start..dest_start + w].copy_from_slice(&buf[src_start..src_start + w]);
+        if dest_row == 0 {
+            break;
+        }
+        dest_row -= 1;
+    }
+
+    buf.clear();
+    buf.extend_from_slice(&result);
+
+    lines_cleared
+}
+
+/// Temporarily place a piece on the board, compute metrics, then undo.
+/// Returns (lines_that_would_clear, metrics). Does NOT modify `cells`.
+/// This avoids the 20KB memcpy per placement on wide boards.
+pub fn score_placement_no_copy(
+    cells: &mut [u8],
+    width: u32,
+    height: u32,
+    piece_type: u8,
+    rotation: u8,
+    row: i32,
+    col: i32,
+    well_start: u32,
+    well_end: u32,
+    col_min: u32,
+    col_max: u32,
+) -> (u32, BoardMetrics) {
+    let w = width as usize;
+    let h = height as usize;
+    let shape = pieces::get_shape(piece_type, rotation);
+
+    // Save original values and place piece
+    let mut saved = [(0usize, 0u8); 4];
+    let mut count = 0;
+    for &(dr, dc) in shape.iter() {
+        let r = (row + dr as i32) as usize;
+        let c = (col + dc as i32) as usize;
+        if r < h && c < w {
+            saved[count] = (r * w + c, cells[r * w + c]);
+            cells[r * w + c] = piece_type;
+            count += 1;
+        }
+    }
+
+    // Check which rows would be cleared (only rows the piece touches)
+    let min_row = shape.iter().map(|&(dr, _)| (row + dr as i32).max(0) as usize).min().unwrap_or(0);
+    let max_row = shape.iter().map(|&(dr, _)| (row + dr as i32) as usize).max().unwrap_or(0).min(h - 1);
+
+    let mut lines = 0u32;
+    for r in min_row..=max_row {
+        let start = r * w;
+        if cells[start..start + w].iter().all(|&v| v != EMPTY) {
+            lines += 1;
+        }
+    }
+
+    // Compute metrics on the board with piece placed (before line clears)
+    // This is approximate — we don't actually clear lines for metrics.
+    // For evolution fitness this is acceptable since we're comparing relative scores.
+    let piece_min_col = shape.iter().map(|&(_, dc)| (col + dc as i32).max(0) as u32).min().unwrap();
+    let piece_max_col = shape.iter().map(|&(_, dc)| (col + dc as i32).min(width as i32 - 1) as u32).max().unwrap();
+    let eff_min = col_min.min(piece_min_col).saturating_sub(1);
+    let eff_max = (col_max.max(piece_max_col) + 1).min(width - 1);
+
+    let metrics = if width > 20 {
+        compute_metrics_windowed(cells, width, height, well_start, well_end, eff_min, eff_max)
+    } else {
+        compute_all_metrics(cells, width, height, well_start, well_end)
+    };
+
+    // Undo placement
+    for i in 0..count {
+        cells[saved[i].0] = saved[i].1;
+    }
+
+    (lines, metrics)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

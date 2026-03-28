@@ -1,10 +1,20 @@
 pub mod pieces;
 pub mod board;
 pub mod placement;
+pub mod params;
+pub mod evaluator_param;
 pub mod evaluator;
+pub mod solver_param;
 pub mod solver;
 pub mod moves;
 pub mod strategy;
+
+#[cfg(feature = "evolve")]
+pub mod bag;
+#[cfg(feature = "evolve")]
+pub mod game_runner;
+#[cfg(feature = "evolve")]
+pub mod evolve;
 
 use wasm_bindgen::prelude::*;
 
