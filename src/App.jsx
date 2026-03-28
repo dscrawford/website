@@ -13,8 +13,12 @@ function App() {
     Math.random() < 0.5 ? 'flat' : 'fourWide'
   )
   const [speedMultiplier, setSpeedMultiplier] = useState(1)
+  const [sidebarVisible, setSidebarVisible] = useState(false)
+  const [cardState, setCardState] = useState('visible')
   const [uiHidden, setUiHidden] = useState(false)
   const resetRef = useRef(null)
+  const orbRef = useRef(null)
+  const uiToggleRef = useRef(null)
 
   const aiEnabled = aiStrategy !== 'off'
   const strategyCode = aiStrategy === 'fourWide' ? 1 : 0
@@ -32,6 +36,75 @@ function App() {
     setCardFocused(false)
   }
 
+  const getToggleCenter = useCallback(() => {
+    const el = uiToggleRef.current
+    if (!el) return { x: window.innerWidth - 28, y: 28 }
+    const r = el.getBoundingClientRect()
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  }, [])
+
+  const animateArc = useCallback((from, to) => {
+    const orb = orbRef.current
+    if (!orb) return Promise.resolve()
+
+    const midX = (from.x + to.x) / 2
+    const midY = Math.min(from.y, to.y) - 120
+
+    orb.style.offsetPath =
+      `path('M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}')`
+    orb.style.display = 'block'
+
+    const anim = orb.animate(
+      [{ offsetDistance: '0%' }, { offsetDistance: '100%' }],
+      { duration: 500, easing: 'ease-in-out', fill: 'forwards' }
+    )
+
+    return anim.finished.then(() => {
+      orb.style.display = 'none'
+    })
+  }, [])
+
+  const handleCardHide = useCallback(() => {
+    if (cardState !== 'visible') return
+    setCardState('collapsing')
+
+    setTimeout(() => {
+      setCardState('arc-out')
+      const from = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+      const to = getToggleCenter()
+      animateArc(from, to).then(() => setCardState('hidden'))
+    }, 300)
+  }, [cardState, animateArc, getToggleCenter])
+
+  const handleCardShow = useCallback(() => {
+    if (cardState !== 'hidden') return
+    setCardState('arc-in')
+
+    const from = getToggleCenter()
+    const to = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    animateArc(from, to).then(() => {
+      setCardState('expanding')
+      setTimeout(() => setCardState('visible'), 300)
+    })
+  }, [cardState, animateArc, getToggleCenter])
+
+  const handleToggleClick = useCallback((e) => {
+    e.stopPropagation()
+    if (uiHidden) {
+      setUiHidden(false)
+      setCardState('visible')
+    } else if (cardState === 'hidden') {
+      handleCardShow()
+    } else if (cardState === 'visible') {
+      setUiHidden(true)
+    }
+  }, [uiHidden, cardState, handleCardShow])
+
+  const showCard = cardState === 'visible' || cardState === 'collapsing' || cardState === 'expanding'
+  const cardAnimClass =
+    cardState === 'collapsing' ? 'collapsing' :
+    cardState === 'expanding' ? 'expanding' : ''
+
   return (
     <div className="site" onClick={handleBackgroundClick}>
       <TetrisBackground
@@ -47,29 +120,48 @@ function App() {
       {!uiHidden && (
         <>
           <TopNav />
-          <TetrisSidebar
-            nextQueue={gameState?.nextQueue}
-            hold={gameState?.hold}
-            score={gameState?.score}
-            level={gameState?.level}
-            aiStrategy={aiStrategy}
-            onAiStrategyChange={setAiStrategy}
-            speedMultiplier={speedMultiplier}
-            onSpeedChange={setSpeedMultiplier}
-            aiInfo={aiInfo}
-            onReset={handleReset}
-          />
-          <CenterCard onFocusChange={setCardFocused} />
+          {sidebarVisible && (
+            <TetrisSidebar
+              nextQueue={gameState?.nextQueue}
+              hold={gameState?.hold}
+              score={gameState?.score}
+              level={gameState?.level}
+              aiStrategy={aiStrategy}
+              onAiStrategyChange={setAiStrategy}
+              speedMultiplier={speedMultiplier}
+              onSpeedChange={setSpeedMultiplier}
+              aiInfo={aiInfo}
+              onReset={handleReset}
+            />
+          )}
+          {showCard && (
+            <CenterCard
+              onFocusChange={setCardFocused}
+              onHide={handleCardHide}
+              className={cardAnimClass}
+            />
+          )}
+          <button
+            className="sidebar-toggle-btn"
+            onClick={(e) => { e.stopPropagation(); setSidebarVisible((v) => !v) }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            title={sidebarVisible ? 'Hide scoreboard' : 'Show scoreboard'}
+          >
+            {sidebarVisible ? '\u00BB' : '\u00AB'}
+          </button>
         </>
       )}
+      <div ref={orbRef} className="arc-orb" />
       <button
+        ref={uiToggleRef}
         className="ui-toggle-btn"
-        onClick={(e) => { e.stopPropagation(); setUiHidden((h) => !h) }}
+        onClick={handleToggleClick}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        title={uiHidden ? 'Show UI' : 'Hide UI'}
+        title={uiHidden ? 'Show UI' : cardState === 'hidden' ? 'Show card' : 'Hide UI'}
       >
-        {uiHidden ? '\u25C9' : '\u25CE'}
+        {uiHidden ? '\u25CE' : '\u25C9'}
       </button>
     </div>
   )
