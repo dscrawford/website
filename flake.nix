@@ -83,6 +83,12 @@
               root /var/www;
               index index.html;
 
+              location /api/ {
+                proxy_pass http://127.0.0.1:3001;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+              }
+
               location / {
                 try_files $uri $uri/ /index.html;
               }
@@ -173,6 +179,9 @@
             pkgs.nodePackages.typescript-language-server
             pkgs.nodePackages.typescript
 
+            # Backend
+            pkgs.redis
+
             # Testing
             pkgs.chromium
 
@@ -189,8 +198,20 @@
 
             # Auto-install node_modules if missing
             if [ ! -d node_modules ]; then
-              echo "📦 Installing npm dependencies..."
+              echo "Installing npm dependencies..."
               npm install
+            fi
+
+            # Auto-install server deps if missing
+            if [ -d server ] && [ ! -d server/node_modules ]; then
+              echo "Installing server dependencies..."
+              (cd server && npm install)
+            fi
+
+            # Start Redis if not already running
+            if ! redis-cli ping 2>/dev/null | grep -q PONG; then
+              redis-server --daemonize yes --port 6379 --loglevel warning
+              echo "  redis started on :6379"
             fi
           '';
         };

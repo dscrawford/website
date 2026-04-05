@@ -1,0 +1,10 @@
+.broadcast-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #fff;
+  white-space: nowrap;
+}

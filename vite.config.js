@@ -5,7 +5,12 @@ import wasm from 'vite-plugin-wasm'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), wasm()],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3001',
+    },
+  },
   test: {
-    exclude: ['e2e/**', 'node_modules/**'],
+    exclude: ['e2e/**', 'node_modules/**', 'server/**'],
   },
 })

@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef } from 'react'
+import useRoute from './hooks/useRoute.js'
 import TopNav from './components/TopNav.jsx'
 import CenterCard from './components/CenterCard.jsx'
 import TetrisBackground from './components/TetrisBackground.jsx'
 import TetrisSidebar from './components/TetrisSidebar.jsx'
+import SportsPage from './components/sports/SportsPage.jsx'
 import './App.css'
 
-function App() {
+function HomePage({ navigate }) {
   const [cardFocused, setCardFocused] = useState(true)
   const [gameState, setGameState] = useState(null)
   const [aiInfo, setAiInfo] = useState(null)
@@ -119,7 +121,7 @@ function App() {
       />
       {!uiHidden && (
         <>
-          <TopNav />
+          <TopNav navigate={navigate} activePage="home" />
           {sidebarVisible && (
             <TetrisSidebar
               nextQueue={gameState?.nextQueue}
@@ -165,6 +167,16 @@ function App() {
       </button>
     </div>
   )
+}
+
+function App() {
+  const { pathname, navigate } = useRoute()
+
+  if (pathname === '/sports') {
+    return <SportsPage navigate={navigate} />
+  }
+
+  return <HomePage navigate={navigate} />
 }
 
 export default App

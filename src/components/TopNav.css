@@ -20,6 +20,8 @@
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 1px;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .nav-links {
@@ -38,9 +40,9 @@
   color: #e0e0e0;
 }
 
-.nav-link-disabled {
-  color: #555;
-  cursor: default;
+.nav-link-active {
+  color: #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 @media (max-width: 768px) {

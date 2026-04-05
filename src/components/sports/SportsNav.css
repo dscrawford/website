@@ -1,0 +1,26 @@
+.sports-nav {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.sports-nav-tab {
+  background: rgba(20, 20, 40, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 6px 16px;
+  color: #aaa;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.sports-nav-tab:hover {
+  background: rgba(40, 40, 60, 0.8);
+  color: #e0e0e0;
+  border-color: rgba(255, 255, 255, 0.25);
+}
