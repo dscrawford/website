@@ -241,34 +241,34 @@ pub struct FourWideParams {
 impl Default for FourWideParams {
     fn default() -> Self {
         Self {
-            fw_landing_height: -4.5,
-            fw_well_cleanliness: 50.0,
-            fw_holes: -10.0,
-            fw_covered_cells: -4.0,
-            fw_column_transitions: -6.0,
-            fw_row_transitions: -2.0,
-            fw_well_sums: -1.0,
-            fw_tower_balance: -4.0,
-            fw_rows_stacking: -20.0,
-            fw_rows_scoring: 30.0,
-            fw_height_gap: -8000.0,
-            fw_stacking_landing_scale: 0.2,
-            fw_scoring_well_clean_scale: 0.3,
-            fw_scoring_holes_scale: 0.5,
-            fw_scoring_covered_scale: 0.5,
-            fw_scoring_col_trans_scale: 0.3,
-            fw_scoring_row_trans_scale: 0.3,
-            fw_scoring_wells_scale: 0.3,
-            fw_scoring_balance_scale: 0.3,
-            fw_bumpiness: -1.0,
-            fw_bumpiness_sq: -0.1,
-            fw_cavities: -4.0,
-            fw_overhangs: 0.0,
-            fw_rows_with_holes: -2.0,
-            fw_notches: -5.0,
-            fw_top_half: -1.5,
-            fw_top_quarter: -5.0,
-            fw_eroded: 3.4181268101392694,
+            fw_landing_height: -4.619907751795365,
+            fw_well_cleanliness: 52.99341859022994,
+            fw_holes: -9.72489568596765,
+            fw_covered_cells: -4.351932432749389,
+            fw_column_transitions: -5.589327255252621,
+            fw_row_transitions: -2.027472969306737,
+            fw_well_sums: -1.0615751325003897,
+            fw_tower_balance: -4.105864892972296,
+            fw_rows_stacking: -18.71635105792104,
+            fw_rows_scoring: 29.23492691349116,
+            fw_height_gap: -7454.9530120404415,
+            fw_stacking_landing_scale: 0.1826699937850997,
+            fw_scoring_well_clean_scale: 0.29066127634027716,
+            fw_scoring_holes_scale: 0.49832780744715893,
+            fw_scoring_covered_scale: 0.46927768190868824,
+            fw_scoring_col_trans_scale: 0.32270994714534706,
+            fw_scoring_row_trans_scale: 0.3014322882423927,
+            fw_scoring_wells_scale: 0.33376095105808523,
+            fw_scoring_balance_scale: 0.33519585094408266,
+            fw_bumpiness: -0.9744291820951854,
+            fw_bumpiness_sq: -0.09470113061932106,
+            fw_cavities: -4.456713179909095,
+            fw_overhangs: -0.004809966801886721,
+            fw_rows_with_holes: -2.147022179096243,
+            fw_notches: -4.594455309142193,
+            fw_top_half: -1.487558003147527,
+            fw_top_quarter: -5.036063693836301,
+            fw_eroded: 3.434545236651424,
         }
     }
 }
@@ -398,8 +398,8 @@ impl Default for SolverParams {
         Self {
             sigmoid_k: 10.645718469308866,
             flat_tetris_bonus_max: 80.2261351941354,
-            fw_tetris_bonus_max: 86.4083316842712,
-            fw_well_cell_penalty: -7.209752380753074,
+            fw_tetris_bonus_max: 97.73804103604388,
+            fw_well_cell_penalty: -7.5037058458316706,
             flat_well_cell_penalty: -5.301629972675438,
             lookahead_breadth: 8.90710380842394,
             lookahead_weight: 0.4441701732123455,
@@ -485,11 +485,13 @@ mod tests {
     }
 
     #[test]
-    fn four_wide_default_matches_constants() {
+    fn four_wide_defaults_have_sane_signs() {
+        // Evolved values change on retune; pin structure, not numbers
         let p = FourWideParams::default();
-        assert_eq!(p.fw_well_cleanliness, 50.0);
-        assert_eq!(p.fw_tower_balance, -4.0);
-        assert_eq!(p.fw_height_gap, -8000.0);
+        assert!(p.fw_well_cleanliness > 0.0);
+        assert!(p.fw_holes < 0.0);
+        assert!(p.fw_height_gap < -1000.0);
+        assert!(p.fw_rows_scoring > 0.0 && p.fw_rows_stacking < 0.0);
     }
 
     #[test]
