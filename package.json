@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "bash scripts/dev.sh",
+    "dev:web": "vite",
     "dev:server": "node --watch server/src/index.js",
     "build": "vite build",
     "wasm:build": "cd tetris-solver && wasm-pack build --target web --out-dir ../src/tetris-solver-pkg",
