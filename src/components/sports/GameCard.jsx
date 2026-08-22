@@ -2,8 +2,9 @@ import TeamRow from './TeamRow.jsx'
 import StatusBadge from './StatusBadge.jsx'
 import BroadcastBadge from './BroadcastBadge.jsx'
 import './GameCard.css'
+import { memo } from 'react'
 
-export default function GameCard({ game }) {
+function GameCard({ game }) {
   if (!game) return null
 
   const { homeTeam, awayTeam, status, broadcasts, startTime } = game
@@ -24,3 +25,5 @@ export default function GameCard({ game }) {
     </div>
   )
 }
+
+export default memo(GameCard)

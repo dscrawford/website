@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const POLL_INTERVAL_MS = 15_000
+// Matches the server poller's cadence (server/src/config.js) — polling
+// faster only re-fetches identical cached data
+const POLL_INTERVAL_MS = 45_000
 
 export default function useSportsData() {
   const [leagues, setLeagues] = useState(null)
@@ -21,7 +23,13 @@ export default function useSportsData() {
       const json = await res.json()
       if (!json.success) throw new Error(json.error || 'Unknown error')
 
-      setLeagues(json.data.leagues)
+      // Keep the previous reference when payloads are identical so
+      // memoized children skip re-rendering
+      setLeagues((prev) =>
+        prev && JSON.stringify(prev) === JSON.stringify(json.data.leagues)
+          ? prev
+          : json.data.leagues
+      )
       setLastUpdated(new Date())
       setError(null)
     } catch (err) {
@@ -43,5 +51,5 @@ export default function useSportsData() {
     }
   }, [fetchScores])
 
-  return { leagues, loading, error, lastUpdated }
+  return { leagues, loading, error, lastUpdated, refetch: fetchScores }
 }

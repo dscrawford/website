@@ -1,14 +1,20 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
-import { PORT } from './config.js'
+import rateLimit from '@fastify/rate-limit'
+import { PORT, HOST, ALLOWED_ORIGINS } from './config.js'
 import * as cache from './services/cache.js'
 import * as poller from './services/poller.js'
 import scoresRoutes from './routes/scores.js'
 
-const fastify = Fastify({ logger: false })
+const fastify = Fastify({ logger: { level: 'warn' } })
 
 async function start() {
-  await fastify.register(cors, { origin: true })
+  await fastify.register(cors, {
+    origin: ALLOWED_ORIGINS,
+    methods: ['GET'],
+    credentials: false,
+  })
+  await fastify.register(rateLimit, { max: 60, timeWindow: '1 minute' })
   await fastify.register(scoresRoutes)
 
   const redis = cache.connect()
@@ -22,8 +28,8 @@ async function start() {
   poller.start()
 
   try {
-    await fastify.listen({ port: PORT, host: '0.0.0.0' })
-    console.log(`[server] Listening on http://localhost:${PORT}`)
+    await fastify.listen({ port: PORT, host: HOST })
+    console.log(`[server] Listening on http://${HOST}:${PORT}`)
   } catch (err) {
     console.error('[server] Failed to start:', err.message)
     process.exit(1)

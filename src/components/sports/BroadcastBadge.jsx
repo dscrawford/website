@@ -24,7 +24,7 @@ export default function BroadcastBadge({ networks }) {
   if (!networks || networks.length === 0) return null
 
   const primary = networks[0]
-  const color = NETWORK_COLORS[primary] || '#444'
+  const color = Object.hasOwn(NETWORK_COLORS, primary) ? NETWORK_COLORS[primary] : '#444'
 
   return (
     <span

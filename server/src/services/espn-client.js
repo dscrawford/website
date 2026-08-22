@@ -1,5 +1,8 @@
 import { ESPN_BASE_URL } from '../config.js'
 
+// ESPN's site API is unofficial and undocumented: no keys, no SLA, and
+// endpoints or rate tolerance can change without notice. Keep polling polite
+// (server-side only, staggered, cached) — see poller.js/config.js.
 export async function fetchScoreboard(sport, league) {
   const url = `${ESPN_BASE_URL}/${sport}/${league}/scoreboard`
 
@@ -17,7 +20,21 @@ export async function fetchScoreboard(sport, league) {
       return null
     }
 
-    return await response.json()
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+      console.error(`[espn] ${league} returned non-JSON content type`)
+      return null
+    }
+    const MAX_BYTES = 4 * 1024 * 1024
+    if (Number(response.headers.get('content-length') || 0) > MAX_BYTES) {
+      console.error(`[espn] ${league} response too large`)
+      return null
+    }
+    const text = await response.text()
+    if (text.length > MAX_BYTES) {
+      console.error(`[espn] ${league} response too large`)
+      return null
+    }
+    return JSON.parse(text)
   } catch (err) {
     if (err.name === 'AbortError') {
       console.error(`[espn] ${league} request timed out`)

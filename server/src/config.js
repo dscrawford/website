@@ -14,4 +14,10 @@ export const CACHE_TTL_SECONDS = 60
 export const CACHE_KEY_PREFIX = 'scores'
 
 export const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379'
-export const PORT = parseInt(process.env.PORT || '3001', 10)
+export const PORT = Number.parseInt(process.env.PORT ?? '3001', 10) || 3001
+// Loopback by default: the reverse proxy fronts /api in production
+export const HOST = process.env.HOST || '127.0.0.1'
+export const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ||
+  'http://localhost:5173,https://dcraw.net,https://danielcrawford.dev'
+).split(',')

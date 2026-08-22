@@ -12,6 +12,8 @@ const LEAGUE_ORDER = [
   { key: 'mlb', label: 'MLB' },
 ]
 
+const EMPTY_GAMES = []
+
 function formatTimeAgo(date) {
   if (!date) return ''
   const seconds = Math.round((Date.now() - date.getTime()) / 1000)
@@ -48,7 +50,7 @@ export default function SportsPage({ navigate }) {
               key={key}
               id={key}
               label={data?.label || label}
-              games={data?.games || []}
+              games={data?.games || EMPTY_GAMES}
             />
           )
         })}

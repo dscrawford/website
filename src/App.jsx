@@ -5,6 +5,7 @@ import CenterCard from './components/CenterCard.jsx'
 import TetrisBackground from './components/TetrisBackground.jsx'
 import TetrisSidebar from './components/TetrisSidebar.jsx'
 import SportsPage from './components/sports/SportsPage.jsx'
+import SportsErrorBoundary from './components/sports/SportsErrorBoundary.jsx'
 import './App.css'
 
 function HomePage({ navigate }) {
@@ -173,7 +174,11 @@ function App() {
   const { pathname, navigate } = useRoute()
 
   if (pathname === '/sports') {
-    return <SportsPage navigate={navigate} />
+    return (
+      <SportsErrorBoundary>
+        <SportsPage navigate={navigate} />
+      </SportsErrorBoundary>
+    )
   }
 
   return <HomePage navigate={navigate} />

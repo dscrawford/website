@@ -30,11 +30,9 @@ export function start() {
   LEAGUES.forEach((leagueConfig, index) => {
     const delay = index * POLL_STAGGER_MS
 
-    // Initial poll with stagger
     const initTimer = setTimeout(() => {
       pollLeague(leagueConfig)
 
-      // Recurring poll
       const intervalTimer = setInterval(
         () => pollLeague(leagueConfig),
         POLL_INTERVAL_MS
