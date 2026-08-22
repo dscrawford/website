@@ -3,11 +3,14 @@ use crate::placement::Placement;
 use crate::solver_param;
 use crate::strategy::Strategy;
 
-/// Result of the solver: the best placement and whether to hold first.
+/// Result of the solver: the best placement, whether to hold first, the
+/// input path from spawn (movegen opcodes), and T-spin status at lock.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolveResult {
     pub placement: Placement,
     pub use_hold: bool,
+    pub path: Vec<u8>,
+    pub spin: u8,
 }
 
 /// Solve for the best move given the current game state and strategy.
@@ -136,6 +139,87 @@ mod tests {
 
         let high = scoring_urgency(0.95, 0.75);
         assert!(high > 0.85, "Expected high urgency, got {}", high);
+    }
+
+    fn tetris_ready_board() -> Vec<u8> {
+        // Rows 16-19 full except col 9: one vertical I from a tetris
+        let mut cells = empty_board(10, 20);
+        for r in 16..20 {
+            for c in 0..9 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        cells
+    }
+
+    fn economics_params() -> (crate::params::SolverParams, crate::params::FlatParams, crate::params::FourWideParams) {
+        // Height-gap holds the board at target for the visual design; zero it
+        // here so these tests isolate the clear-pricing economics
+        let fp = crate::params::FlatParams { w_height_gap: 0.0, ..Default::default() };
+        (Default::default(), fp, Default::default())
+    }
+
+    #[test]
+    fn declines_single_that_kills_tetris() {
+        // Scoring mode with a tetris-ready well: burning it with a non-I
+        // piece must lose to stacking and waiting for the I
+        let cells = tetris_ready_board();
+        let (sp, fp, fwp) = economics_params();
+        for piece in [crate::pieces::L, crate::pieces::J, S, T] {
+            let result = crate::solver_param::solve_param(
+                &cells, 10, 20, piece, 0, false, &[], 0.0, Strategy::Flat, &sp, &fp, &fwp,
+            )
+            .unwrap();
+            let shape = crate::pieces::get_shape(result.placement.piece_type, result.placement.rotation);
+            let touches_well = shape
+                .iter()
+                .any(|&(_, dc)| result.placement.col + dc as i32 == 9);
+            assert!(
+                !touches_well,
+                "piece {} placed into the well column (rot {} col {} row {})",
+                piece, result.placement.rotation, result.placement.col, result.placement.landing_row
+            );
+        }
+    }
+
+    #[test]
+    fn takes_the_tetris_with_i() {
+        let cells = tetris_ready_board();
+        let (sp, fp, fwp) = economics_params();
+        let result = crate::solver_param::solve_param(
+            &cells, 10, 20, I, 0, false, &[], 0.0, Strategy::Flat, &sp, &fp, &fwp,
+        )
+        .unwrap();
+        let (_, lines) = board::simulate_place(
+            &cells, 10, 20,
+            result.placement.piece_type, result.placement.rotation,
+            result.placement.landing_row, result.placement.col,
+        );
+        assert_eq!(lines, 4, "I piece should clear the tetris, got {} lines", lines);
+    }
+
+    #[test]
+    fn releases_held_i_in_danger_zone() {
+        // Stack into the top quarter with a ready well: the I must be
+        // played for the tetris, not hoarded for a target that may never come
+        let mut cells = empty_board(10, 20);
+        for r in 2..20 {
+            for c in 0..9 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        let result = solve(&cells, 10, 20, I, 0, true, &[T, S], 0.75, Strategy::Flat).unwrap();
+        assert!(
+            !result.use_hold && result.placement.piece_type == I,
+            "I should be played, not held (use_hold={})",
+            result.use_hold
+        );
+        let (_, lines) = board::simulate_place(
+            &cells, 10, 20,
+            result.placement.piece_type, result.placement.rotation,
+            result.placement.landing_row, result.placement.col,
+        );
+        assert_eq!(lines, 4, "I should clear four lines from the well");
     }
 
     // === 4-Wide strategy tests ===

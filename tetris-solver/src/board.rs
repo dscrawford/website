@@ -278,8 +278,8 @@ pub fn well_sums(cells: &[u8], width: u32, height: u32) -> u32 {
 /// Returns the inclusive (start, end) column range of the centered 4-wide well.
 /// For width=10: (3, 6). For width=20: (8, 11).
 pub fn well_column_range(width: u32) -> (u32, u32) {
-    let start = (width - 4) / 2;
-    (start, start + 3)
+    let start = width.saturating_sub(4) / 2;
+    (start, (start + 3).min(width.saturating_sub(1)))
 }
 
 /// Count filled cells within the well zone columns, from the board bottom up to
@@ -368,12 +368,227 @@ pub struct BoardMetrics {
     pub row_transitions: u32,
     pub column_transitions: u32,
     pub holes: u32,
+    pub covered_cells: u32,
     pub well_sums: u32,
     pub aggregate_height: u32,
+    // Surface/flatness features — see docs/TETRIS_AI_RESEARCH.md
+    pub bumpiness: u32,
+    pub bumpiness_sq: u32,
+    pub cavities: u32,
+    pub overhangs: u32,
+    pub rows_with_holes: u32,
+    pub notches: u32,
+    pub top_half_cells: u32,
+    pub top_quarter_cells: u32,
+    // Dynamic-well economics: the well is the rightmost lowest column;
+    // depth counts full-except-well rows stacked on its surface
+    pub well_col: u32,
+    pub well_col_height: u32,
+    pub well_depth: u32,
+    pub covered_well: u32,
     // 4-Wide extras
     pub well_fill_count: u32,
     pub left_tower_avg_height: f64,
     pub right_tower_avg_height: f64,
+}
+
+const WELL_DEPTH_CAP: u32 = 8;
+
+/// well_depth: consecutive rows above the well surface that are full except
+/// the well column (clearable by one vertical I). covered_well: filled
+/// cells above any empty well-column cell (sealed-overhang cost).
+fn well_metrics(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    col_heights: &[u32],
+    cmin: usize,
+    cmax: usize,
+) -> (u32, u32, u32, u32) {
+    let w = width as usize;
+    let h = height as usize;
+
+    let mut wc = cmin;
+    for col in cmin..=cmax {
+        if col_heights[col] <= col_heights[wc] {
+            wc = col;
+        }
+    }
+
+    let h_wc = col_heights[wc];
+    let mut depth = 0u32;
+    // Width 1 has no "other columns": the full-except-well predicate would be
+    // vacuously true and saturate depth on any board
+    let mut row = if w > 1 { h as i32 - 1 - h_wc as i32 } else { -1 };
+    while row >= 0 && depth < WELL_DEPTH_CAP {
+        let r = row as usize;
+        // Window-bounded: out-of-window columns are empty by the windowing
+        // contract, and windows carry empty margin columns, so this matches
+        // the full-width check while staying O(window)
+        let full_except_well = (cmin..=cmax).all(|c| c == wc || cells[r * w + c] != EMPTY);
+        if !full_except_well {
+            break;
+        }
+        depth += 1;
+        row -= 1;
+    }
+
+    let mut covered = 0u32;
+    let mut filled_above = 0u32;
+    if h_wc > 0 {
+        let top = h - h_wc as usize;
+        for r in top..h {
+            if cells[r * w + wc] != EMPTY {
+                filled_above += 1;
+            } else {
+                covered = covered.saturating_add(filled_above);
+            }
+        }
+    }
+
+    (wc as u32, h_wc, depth, covered)
+}
+
+/// Surface-quality features over [cmin, cmax]. Callers must zero-pad
+/// col_heights >=1 column past each window edge, or results diverge from a
+/// full scan (bumpiness counts edge steps; classification reads col+-2).
+/// Cavities/overhangs follow cold-clear's reachable-by-tuck test; notches
+/// are 1-wide, depth>=3 wells (I-only).
+struct SurfaceMetrics {
+    bumpiness: u32,
+    bumpiness_sq: u32,
+    cavities: u32,
+    overhangs: u32,
+    rows_with_holes: u32,
+    notches: u32,
+    top_half_cells: u32,
+    top_quarter_cells: u32,
+}
+
+fn surface_metrics(
+    width: u32,
+    height: u32,
+    col_heights: &[u32],
+    hole_positions: &[(u32, u32)],
+    cmin: usize,
+    cmax: usize,
+) -> SurfaceMetrics {
+    let w = width as usize;
+    let h = height as usize;
+
+    // No well-column exclusion here: a window-local argmin isn't
+    // window-invariant (well exemption belongs in strategy code, not here).
+    let mut bumpiness = 0u32;
+    let mut bumpiness_sq = 0u32;
+    for col in (cmin + 1)..=cmax {
+        let d = col_heights[col - 1].abs_diff(col_heights[col]);
+        bumpiness = bumpiness.saturating_add(d);
+        bumpiness_sq = bumpiness_sq.saturating_add(d.saturating_mul(d));
+    }
+
+    let mut cavities = 0u32;
+    let mut overhangs = 0u32;
+    for &(row, col) in hole_positions {
+        let col = col as usize;
+        // y = rows below the hole; a side column is "open" there if its height <= y
+        let y = (h - 1 - row as usize) as i64;
+        let reachable_left = col >= 2
+            && (col_heights[col - 1] as i64) <= y - 1
+            && (col_heights[col - 2] as i64) <= y;
+        let reachable_right = col + 2 < w
+            && (col_heights[col + 1] as i64) <= y - 1
+            && (col_heights[col + 2] as i64) <= y;
+        if reachable_left || reachable_right {
+            overhangs += 1;
+        } else {
+            cavities += 1;
+        }
+    }
+
+    let rows_with_holes = if h <= 256 {
+        let mut bits = [0u128; 2];
+        for &(row, _) in hole_positions {
+            bits[(row / 128) as usize] |= 1u128 << (row % 128);
+        }
+        bits[0].count_ones() + bits[1].count_ones()
+    } else {
+        let mut rows: Vec<u32> = hole_positions.iter().map(|&(r, _)| r).collect();
+        rows.sort_unstable();
+        rows.dedup();
+        rows.len() as u32
+    };
+
+    let mut notches = 0u32;
+    let mut top_half_cells = 0u32;
+    let mut top_quarter_cells = 0u32;
+    let half = height / 2;
+    let three_quarter = ((height as u64) * 3 / 4) as u32;
+    for col in cmin..=cmax {
+        let ch = col_heights[col];
+        let hl = if col == 0 { u32::MAX } else { col_heights[col - 1] };
+        let hr = if col == w - 1 { u32::MAX } else { col_heights[col + 1] };
+        if w >= 2 && hl.min(hr) >= ch.saturating_add(3) {
+            notches += 1;
+        }
+        top_half_cells += ch.saturating_sub(half);
+        top_quarter_cells += ch.saturating_sub(three_quarter);
+    }
+
+    SurfaceMetrics {
+        bumpiness,
+        bumpiness_sq,
+        cavities,
+        overhangs,
+        rows_with_holes,
+        notches,
+        top_half_cells,
+        top_quarter_cells,
+    }
+}
+
+/// Lines cleared and Dellacherie's eroded-piece-cells (lines x piece cells
+/// in them). Reads the board BEFORE placement; assumes a legal,
+/// non-overlapping placement (only rows matter, not columns).
+pub fn clears_and_eroded(
+    cells: &[u8],
+    width: u32,
+    height: u32,
+    piece_type: u8,
+    rotation: u8,
+    row: i32,
+    _col: i32,
+) -> (u32, u32) {
+    let w = width as usize;
+    let h = height as usize;
+    let shape = pieces::get_shape(piece_type, rotation);
+
+    let mut lines = 0u32;
+    let mut piece_cells_in_cleared = 0u32;
+
+    let mut rows_seen = [i32::MIN; 4];
+    let mut n_seen = 0usize;
+    for &(dr, _) in shape.iter() {
+        let Some(r) = row.checked_add(dr as i32) else { continue };
+        if r < 0 || r >= h as i32 || rows_seen[..n_seen].contains(&r) {
+            continue;
+        }
+        rows_seen[n_seen] = r;
+        n_seen += 1;
+
+        let piece_cells_in_row = shape
+            .iter()
+            .filter(|&&(dr2, _)| row + dr2 as i32 == r)
+            .count() as u32;
+        let filled_in_row = (0..w)
+            .filter(|&c| cells[r as usize * w + c] != EMPTY)
+            .count() as u32;
+        if filled_in_row + piece_cells_in_row == width {
+            lines += 1;
+            piece_cells_in_cleared += piece_cells_in_row;
+        }
+    }
+
+    (lines, lines * piece_cells_in_cleared)
 }
 
 /// Compute all board metrics in a single column-major pass.
@@ -387,22 +602,30 @@ pub fn compute_all_metrics(
 ) -> BoardMetrics {
     let w = width as usize;
     let h = height as usize;
+    let Some(size) = w.checked_mul(h) else {
+        return BoardMetrics::default();
+    };
+    if w == 0 || h == 0 || cells.len() < size {
+        return BoardMetrics::default();
+    }
 
     let mut row_trans = 0u32;
     let mut col_trans = 0u32;
     let mut holes = 0u32;
+    let mut covered = 0u32;
     let mut well_sum = 0u32;
     let mut agg_height = 0u32;
     let mut well_fill = 0u32;
     let mut left_height_sum = 0u32;
     let mut right_height_sum = 0u32;
+    let mut hole_positions: Vec<(u32, u32)> = Vec::new();
 
     // Pre-compute column heights in one pass (column-major)
-    // Also compute holes, column_transitions, and aggregate_height per column
+    // Also compute holes, covered_cells, column_transitions, and aggregate_height per column
     let mut col_heights = vec![0u32; w];
 
     for col in 0..w {
-        let mut found_filled = false;
+        let mut filled_above = 0u32;
         let mut height_set = false;
 
         // Ceiling (empty) to first row transition
@@ -420,11 +643,13 @@ pub fn compute_all_metrics(
                 height_set = true;
             }
 
-            // Holes
+            // Holes + covered cells (weighted by depth of blockage)
             if is_filled {
-                found_filled = true;
-            } else if found_filled {
+                filled_above += 1;
+            } else if filled_above > 0 {
                 holes += 1;
+                covered = covered.saturating_add(filled_above);
+                hole_positions.push((row as u32, col as u32));
             }
 
             // Column transitions (interior)
@@ -541,12 +766,29 @@ pub fn compute_all_metrics(
     let left_cols = well_start;
     let right_cols = width - well_end - 1;
 
+    let sm = surface_metrics(width, height, &col_heights, &hole_positions, 0, w - 1);
+    let (well_col, well_col_height, well_depth, covered_well) =
+        well_metrics(cells, width, height, &col_heights, 0, w - 1);
+
     BoardMetrics {
         row_transitions: row_trans,
         column_transitions: col_trans,
         holes,
+        covered_cells: covered,
         well_sums: well_sum,
         aggregate_height: agg_height,
+        bumpiness: sm.bumpiness,
+        bumpiness_sq: sm.bumpiness_sq,
+        cavities: sm.cavities,
+        overhangs: sm.overhangs,
+        rows_with_holes: sm.rows_with_holes,
+        notches: sm.notches,
+        top_half_cells: sm.top_half_cells,
+        top_quarter_cells: sm.top_quarter_cells,
+        well_col,
+        well_col_height,
+        well_depth,
+        covered_well,
         well_fill_count: well_fill,
         left_tower_avg_height: if left_cols > 0 {
             left_height_sum as f64 / left_cols as f64
@@ -575,23 +817,31 @@ pub fn compute_metrics_windowed(
 ) -> BoardMetrics {
     let w = width as usize;
     let h = height as usize;
-    let cmin = col_min as usize;
-    let cmax = (col_max as usize).min(w - 1);
+    let Some(size) = w.checked_mul(h) else {
+        return BoardMetrics::default();
+    };
+    if w == 0 || h == 0 || cells.len() < size {
+        return BoardMetrics::default();
+    }
+    let cmin = (col_min as usize).min(w - 1);
+    let cmax = (col_max as usize).min(w - 1).max(cmin);
 
     let mut row_trans = 0u32;
     let mut col_trans = 0u32;
     let mut holes = 0u32;
+    let mut covered = 0u32;
     let mut well_sum = 0u32;
     let mut agg_height = 0u32;
     let mut well_fill = 0u32;
     let mut left_height_sum = 0u32;
     let mut right_height_sum = 0u32;
+    let mut hole_positions: Vec<(u32, u32)> = Vec::new();
 
     // Column-major pass over the active window
     let mut col_heights = vec![0u32; w];
 
     for col in cmin..=cmax {
-        let mut found_filled = false;
+        let mut filled_above = 0u32;
         let mut height_set = false;
 
         if cells[col] != EMPTY {
@@ -608,9 +858,11 @@ pub fn compute_metrics_windowed(
             }
 
             if is_filled {
-                found_filled = true;
-            } else if found_filled {
+                filled_above += 1;
+            } else if filled_above > 0 {
                 holes += 1;
+                covered = covered.saturating_add(filled_above);
+                hole_positions.push((row as u32, col as u32));
             }
 
             if row > 0 {
@@ -726,12 +978,40 @@ pub fn compute_metrics_windowed(
     let left_cols = well_start;
     let right_cols = width - well_end - 1;
 
+    // Cavity/overhang classification reads neighbor heights at col+-2; columns
+    // just outside the window were never scanned and would read as empty
+    for col in (cmin.saturating_sub(2)..cmin).chain((cmax + 1)..(cmax + 3).min(w)) {
+        for row in 0..h {
+            if cells[row * w + col] != EMPTY {
+                col_heights[col] = height - row as u32;
+                break;
+            }
+        }
+    }
+
+    let sm = surface_metrics(width, height, &col_heights, &hole_positions, cmin, cmax);
+    let (well_col, well_col_height, well_depth, covered_well) =
+        well_metrics(cells, width, height, &col_heights, cmin, cmax);
+
     BoardMetrics {
         row_transitions: row_trans,
         column_transitions: col_trans,
         holes,
+        covered_cells: covered,
         well_sums: well_sum,
         aggregate_height: agg_height,
+        bumpiness: sm.bumpiness,
+        bumpiness_sq: sm.bumpiness_sq,
+        cavities: sm.cavities,
+        overhangs: sm.overhangs,
+        rows_with_holes: sm.rows_with_holes,
+        notches: sm.notches,
+        top_half_cells: sm.top_half_cells,
+        top_quarter_cells: sm.top_quarter_cells,
+        well_col,
+        well_col_height,
+        well_depth,
+        covered_well,
         well_fill_count: well_fill,
         left_tower_avg_height: if left_cols > 0 {
             left_height_sum as f64 / left_cols as f64
@@ -830,7 +1110,7 @@ pub fn score_placement_no_copy(
     well_end: u32,
     col_min: u32,
     col_max: u32,
-) -> (u32, BoardMetrics) {
+) -> (u32, u32, BoardMetrics) {
     let w = width as usize;
     let h = height as usize;
     let shape = pieces::get_shape(piece_type, rotation);
@@ -853,12 +1133,18 @@ pub fn score_placement_no_copy(
     let max_row = shape.iter().map(|&(dr, _)| (row + dr as i32) as usize).max().unwrap_or(0).min(h - 1);
 
     let mut lines = 0u32;
+    let mut piece_cells_in_cleared = 0u32;
     for r in min_row..=max_row {
         let start = r * w;
         if cells[start..start + w].iter().all(|&v| v != EMPTY) {
             lines += 1;
+            piece_cells_in_cleared += shape
+                .iter()
+                .filter(|&&(dr, _)| (row + dr as i32) as usize == r)
+                .count() as u32;
         }
     }
+    let eroded = lines * piece_cells_in_cleared;
 
     // Compute metrics on the board with piece placed (before line clears)
     // This is approximate — we don't actually clear lines for metrics.
@@ -879,7 +1165,7 @@ pub fn score_placement_no_copy(
         cells[saved[i].0] = saved[i].1;
     }
 
-    (lines, metrics)
+    (lines, eroded, metrics)
 }
 
 #[cfg(test)]
@@ -1358,5 +1644,473 @@ mod tests {
         // I piece horizontal at col 3: cells at cols 3,4,5,6 — all in well
         let count = placement_cells_in_well(I, 0, 19, 3, 3, 6);
         assert_eq!(count, 4);
+    }
+
+    // === Surface metrics (Phase 2) ===
+
+    fn metrics_10(cells: &[u8]) -> BoardMetrics {
+        compute_all_metrics(cells, 10, 20, 3, 6)
+    }
+
+    #[test]
+    fn bumpiness_is_plain_adjacent_height_diffs() {
+        // Heights: [2,2,2,2,0,2,2,2,2,2] — the well at col 4 counts as two
+        // steps of 2 (window-invariant; no lowest-column exclusion)
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            if c != 4 {
+                set_cell(&mut cells, 10, 18, c, I);
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.bumpiness, 4);
+        assert_eq!(m.bumpiness_sq, 8);
+    }
+
+    #[test]
+    fn bumpiness_counts_edge_steps() {
+        // Heights: [4,2,2,...,2,0]: step of 2 at each end
+        let mut cells = empty_board(10, 20);
+        for c in 0..9u32 {
+            set_cell(&mut cells, 10, 18, c, I);
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        set_cell(&mut cells, 10, 16, 0, I);
+        set_cell(&mut cells, 10, 17, 0, I);
+        let m = metrics_10(&cells);
+        assert_eq!(m.bumpiness, 4);
+        assert_eq!(m.bumpiness_sq, 8);
+    }
+
+    #[test]
+    fn windowed_bumpiness_matches_full_scan_with_padding() {
+        // Heights 2,5,2 in cols 3-5; window (2,6) has one empty padding
+        // column each side, the caller-guaranteed minimum
+        let mut cells = empty_board(10, 20);
+        for r in 18..20u32 { set_cell(&mut cells, 10, r, 3, I); }
+        for r in 15..20u32 { set_cell(&mut cells, 10, r, 4, I); }
+        for r in 18..20u32 { set_cell(&mut cells, 10, r, 5, I); }
+
+        let full = compute_all_metrics(&cells, 10, 20, 3, 6);
+        let windowed = compute_metrics_windowed(&cells, 10, 20, 3, 6, 2, 6);
+        assert_eq!(full.bumpiness, 10);
+        assert_eq!(windowed.bumpiness, full.bumpiness);
+        assert_eq!(windowed.bumpiness_sq, full.bumpiness_sq);
+    }
+
+    #[test]
+    fn rows_with_holes_counts_rows_not_holes() {
+        // Three holes in row 19, one row affected
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            set_cell(&mut cells, 10, 18, c, I);
+        }
+        for c in [2u32, 5, 7] {
+            for r in [17u32] {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        // Row 19 fully empty below full row 18 → 10 holes in one row
+        let m = metrics_10(&cells);
+        assert_eq!(m.rows_with_holes, 1);
+        assert_eq!(m.holes, 10);
+    }
+
+    #[test]
+    fn notch_detection_depth_three() {
+        // Col 4 empty with both neighbors 3 high → notch
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            if c != 4 {
+                for r in 17..20u32 {
+                    set_cell(&mut cells, 10, r, c, I);
+                }
+            }
+        }
+        assert_eq!(metrics_10(&cells).notches, 1);
+
+        // Depth 2 is not a notch
+        let mut shallow = empty_board(10, 20);
+        for c in 0..10u32 {
+            if c != 4 {
+                for r in 18..20u32 {
+                    set_cell(&mut shallow, 10, r, c, I);
+                }
+            }
+        }
+        assert_eq!(metrics_10(&shallow).notches, 0);
+    }
+
+    #[test]
+    fn notch_against_wall_counts() {
+        // Col 0 empty, col 1 is 3 high: wall counts as infinite
+        let mut cells = empty_board(10, 20);
+        for r in 17..20u32 {
+            set_cell(&mut cells, 10, r, 1, I);
+        }
+        assert_eq!(metrics_10(&cells).notches, 1);
+    }
+
+    #[test]
+    fn top_cells_thresholds() {
+        // One column 18 high on a 20 board: half=10, three_quarter=15
+        let mut cells = empty_board(10, 20);
+        for r in 2..20u32 {
+            set_cell(&mut cells, 10, r, 0, I);
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.top_half_cells, 8);
+        assert_eq!(m.top_quarter_cells, 3);
+    }
+
+    #[test]
+    fn cavities_plus_overhangs_equals_holes() {
+        let mut cells = empty_board(10, 20);
+        // Mixed board with a sealed hole and a reachable one
+        for c in [3u32, 5] {
+            for r in 17..20u32 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        set_cell(&mut cells, 10, 17, 4, I); // seals (18,4),(19,4)
+        set_cell(&mut cells, 10, 17, 8, I); // overhang roof at col 8, open sides
+        let m = metrics_10(&cells);
+        assert_eq!(m.cavities + m.overhangs, m.holes);
+        assert!(m.cavities >= 2, "sealed column holes must be cavities");
+        assert!(m.overhangs >= 1, "hole under lone roof with open sides must be an overhang");
+    }
+
+    #[test]
+    fn windowed_surface_metrics_match_full_scan() {
+        let mut cells = empty_board(30, 20);
+        // Structure within cols 10-16
+        for c in 10..17u32 {
+            set_cell(&mut cells, 30, 19, c, I);
+        }
+        for r in 16..20u32 {
+            set_cell(&mut cells, 30, r, 12, I);
+        }
+        set_cell(&mut cells, 30, 17, 14, I);
+
+        let full = compute_all_metrics(&cells, 30, 20, 13, 16);
+        let windowed = compute_metrics_windowed(&cells, 30, 20, 13, 16, 8, 18);
+        assert_eq!(full.cavities, windowed.cavities);
+        assert_eq!(full.overhangs, windowed.overhangs);
+        assert_eq!(full.rows_with_holes, windowed.rows_with_holes);
+        assert_eq!(full.notches, windowed.notches);
+        assert_eq!(full.top_half_cells, windowed.top_half_cells);
+        assert_eq!(full.top_quarter_cells, windowed.top_quarter_cells);
+        assert_eq!(full.holes, windowed.holes);
+        assert_eq!(full.covered_cells, windowed.covered_cells);
+        assert_eq!(full.bumpiness, windowed.bumpiness);
+        assert_eq!(full.bumpiness_sq, windowed.bumpiness_sq);
+    }
+
+    #[test]
+    fn windowed_classification_sees_structure_just_outside_window() {
+        // Tall column at col 7, window starts at col 8: the hole at (18,8)
+        // under a roof must classify identically whether col 7 was scanned
+        // as part of the window or not.
+        let mut cells = empty_board(30, 20);
+        for r in 15..20u32 {
+            set_cell(&mut cells, 30, r, 7, I);
+        }
+        set_cell(&mut cells, 30, 17, 8, I);
+        set_cell(&mut cells, 30, 19, 8, I);
+
+        let full = compute_all_metrics(&cells, 30, 20, 13, 16);
+        let windowed = compute_metrics_windowed(&cells, 30, 20, 13, 16, 8, 12);
+        assert_eq!(full.cavities, windowed.cavities);
+        assert_eq!(full.overhangs, windowed.overhangs);
+    }
+
+    #[test]
+    fn width_one_board_all_holes_are_cavities() {
+        // col >= 2 / col + 2 < w can never hold: reachability is undefined
+        // on a single column, so every hole degenerates to a cavity
+        let mut cells = empty_board(1, 20);
+        set_cell(&mut cells, 1, 17, 0, I);
+        set_cell(&mut cells, 1, 19, 0, I);
+        let (ws, we) = well_column_range(1);
+        let m = compute_all_metrics(&cells, 1, 20, ws, we);
+        assert_eq!(m.holes, 1);
+        assert_eq!((m.cavities, m.overhangs), (1, 0));
+    }
+
+    #[test]
+    fn width_one_board_has_no_notches() {
+        // Both neighbors are wall sentinels; the w >= 2 guard keeps a bare
+        // single column from reading as an I-dependency
+        let cells = empty_board(1, 20);
+        let (ws, we) = well_column_range(1);
+        assert_eq!(compute_all_metrics(&cells, 1, 20, ws, we).notches, 0);
+    }
+
+    #[test]
+    fn width_three_middle_column_can_never_be_an_overhang() {
+        // col 1 fails both col >= 2 and col + 2 < 3 — structural blind spot
+        // of the classification formula, documented not endorsed
+        let mut cells = empty_board(3, 20);
+        set_cell(&mut cells, 3, 17, 1, I);
+        set_cell(&mut cells, 3, 19, 1, I);
+        let (ws, we) = well_column_range(3);
+        let m = compute_all_metrics(&cells, 3, 20, ws, we);
+        assert_eq!(m.holes, 1);
+        assert_eq!((m.cavities, m.overhangs), (1, 0));
+    }
+
+    #[test]
+    fn cavities_and_overhangs_partition_holes_property() {
+        struct Xorshift32(u32);
+        impl Xorshift32 {
+            fn next(&mut self) -> u32 {
+                let mut x = self.0;
+                x ^= x << 13;
+                x ^= x >> 17;
+                x ^= x << 5;
+                self.0 = x;
+                x
+            }
+        }
+
+        for &width in &[1u32, 2, 3, 4, 5, 10, 20] {
+            let height = 20u32;
+            let mut rng = Xorshift32(width.wrapping_mul(2_654_435_761).wrapping_add(1));
+            for trial in 0..30u32 {
+                let density = 1 + (trial % 5);
+                let mut cells = vec![EMPTY; (width * height) as usize];
+                for i in 0..cells.len() {
+                    if rng.next() % 6 < density {
+                        cells[i] = I;
+                    }
+                }
+                let (ws, we) = well_column_range(width);
+                let m = compute_all_metrics(&cells, width, height, ws, we);
+                assert_eq!(
+                    m.cavities + m.overhangs,
+                    m.holes,
+                    "width={} trial={}: cavities+overhangs must equal holes",
+                    width,
+                    trial
+                );
+                assert!(m.rows_with_holes <= height);
+                assert!(m.notches <= width);
+                assert!(m.bumpiness_sq >= m.bumpiness || m.bumpiness == 0);
+            }
+        }
+    }
+
+    // === Dynamic well metrics (Phase 3) ===
+
+    #[test]
+    fn well_is_rightmost_lowest_column() {
+        // Cols 2 and 7 both empty: rightmost wins
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            if c != 2 && c != 7 {
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col, 7);
+        assert_eq!(m.well_col_height, 0);
+    }
+
+    #[test]
+    fn well_depth_counts_full_except_well_rows() {
+        // Rows 16-19 full except col 9 -> depth 4, tetris-ready shape
+        let mut cells = empty_board(10, 20);
+        for r in 16..20u32 {
+            for c in 0..9u32 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col, 9);
+        assert_eq!(m.well_depth, 4);
+        assert_eq!(m.covered_well, 0);
+    }
+
+    #[test]
+    fn well_depth_stops_at_incomplete_row() {
+        // Row 19 full except col 9; row 18 missing col 0 too -> depth 1
+        let mut cells = empty_board(10, 20);
+        for c in 0..9u32 {
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        for c in 1..9u32 {
+            set_cell(&mut cells, 10, 18, c, I);
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_depth, 1);
+    }
+
+    #[test]
+    fn covered_well_counts_fill_over_empty_well_cells() {
+        // Well at col 9 with garbage at rows 15-16 over empty rows 17-19
+        let mut cells = empty_board(10, 20);
+        for r in 14..20u32 {
+            for c in 0..9u32 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        set_cell(&mut cells, 10, 15, 9, I);
+        set_cell(&mut cells, 10, 16, 9, I);
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col, 9);
+        // 3 empty cells (17,18,19) each under 2 filled -> 6
+        assert_eq!(m.covered_well, 6);
+    }
+
+    #[test]
+    fn clears_and_eroded_piece_partially_above_board() {
+        let cells = empty_board(10, 20);
+        let (lines, eroded) = clears_and_eroded(&cells, 10, 20, I, 1, -2, 3);
+        assert_eq!((lines, eroded), (0, 0));
+    }
+
+    #[test]
+    fn clears_and_eroded_tetris_quad() {
+        let mut cells = empty_board(10, 20);
+        for r in 16..20u32 {
+            for c in 0..10u32 {
+                if c != 7 {
+                    set_cell(&mut cells, 10, r, c, I);
+                }
+            }
+        }
+        let (lines, eroded) = clears_and_eroded(&cells, 10, 20, I, 1, 16, 5);
+        assert_eq!(lines, 4);
+        assert_eq!(eroded, 16); // 4 lines x 4 piece cells
+    }
+
+    #[test]
+    fn clears_and_eroded_matches_score_placement_no_copy() {
+        // Two implementations of the same quantity must agree for a legal
+        // placement (one reads pre-placement, one overlays the piece)
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            if !(3..=6).contains(&c) {
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        let (lines_a, eroded_a) = clears_and_eroded(&cells, 10, 20, I, 0, 18, 3);
+        let (ws, we) = well_column_range(10);
+        let (lines_b, eroded_b, _) =
+            score_placement_no_copy(&mut cells, 10, 20, I, 0, 18, 3, ws, we, 0, 9);
+        assert_eq!((lines_a, eroded_a), (lines_b, eroded_b));
+        assert_eq!((lines_a, eroded_a), (1, 4));
+    }
+
+    #[test]
+    fn clears_and_eroded_counts_piece_cells_in_cleared_lines() {
+        // Row 19 missing cols 3-6; horizontal I fills all four
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            if !(3..=6).contains(&c) {
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        // I piece rot 0 at col 3 lands with all 4 cells in row 19
+        let (lines, eroded) = clears_and_eroded(&cells, 10, 20, I, 0, 18, 3);
+        assert_eq!(lines, 1);
+        assert_eq!(eroded, 4); // 1 line x 4 piece cells in it
+    }
+
+    #[test]
+    fn clears_and_eroded_no_clear() {
+        let cells = empty_board(10, 20);
+        let (lines, eroded) = clears_and_eroded(&cells, 10, 20, T, 0, 18, 3);
+        assert_eq!((lines, eroded), (0, 0));
+    }
+
+    #[test]
+    fn clears_and_eroded_double_with_t() {
+        // TSD shape: rows 18 (missing 3,4,5) and 19 (missing 4); T rot 2 at
+        // (17,3) contributes 3 cells to row 18 and 1 to row 19 → 2 lines,
+        // eroded = 2 * 4
+        let mut cells = empty_board(10, 20);
+        for c in 0..10u32 {
+            if !(3..=5).contains(&c) {
+                set_cell(&mut cells, 10, 18, c, I);
+            }
+            if c != 4 {
+                set_cell(&mut cells, 10, 19, c, I);
+            }
+        }
+        let (lines, eroded) = clears_and_eroded(&cells, 10, 20, T, 2, 17, 3);
+        assert_eq!(lines, 2);
+        assert_eq!(eroded, 8);
+    }
+
+    #[test]
+    fn well_metrics_flat_board_picks_rightmost_column_zero_depth() {
+        let cells = empty_board(10, 20);
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col, 9);
+        assert_eq!(m.well_col_height, 0);
+        assert_eq!(m.well_depth, 0);
+        assert_eq!(m.covered_well, 0);
+    }
+
+    #[test]
+    fn well_metrics_well_at_column_zero() {
+        // Only col 0 empty; col 0 must win even though it is leftmost
+        let mut cells = empty_board(10, 20);
+        for c in 1..10u32 {
+            set_cell(&mut cells, 10, 19, c, I);
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col, 0);
+        assert_eq!(m.well_col_height, 0);
+        assert_eq!(m.well_depth, 1);
+    }
+
+    #[test]
+    fn well_metrics_width_one_board_has_zero_depth() {
+        // With no other columns the full-except-well predicate would be
+        // vacuously true; the width guard must keep depth at 0
+        let cells = empty_board(1, 20);
+        let (ws, we) = well_column_range(1);
+        let m = compute_all_metrics(&cells, 1, 20, ws, we);
+        assert_eq!(m.well_col, 0);
+        assert_eq!(m.well_depth, 0);
+
+        let mut partial = empty_board(1, 20);
+        set_cell(&mut partial, 1, 19, 0, I);
+        let m = compute_all_metrics(&partial, 1, 20, ws, we);
+        assert_eq!(m.well_col_height, 1);
+        assert_eq!(m.well_depth, 0);
+    }
+
+    #[test]
+    fn well_depth_caps_at_eight_even_with_nine_stacked_rows() {
+        // Rows 11-19 (9 rows) full except col 9 -> depth must cap at 8, not 9
+        let mut cells = empty_board(10, 20);
+        for r in 11..20u32 {
+            for c in 0..9u32 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col, 9);
+        assert_eq!(m.well_depth, 8, "well_depth must be capped at WELL_DEPTH_CAP");
+    }
+
+    #[test]
+    fn well_metrics_fully_filled_board_has_zero_depth_and_covered() {
+        // h_wc == height: the depth scan's starting row is negative and the
+        // covered scan has no empty cells to accumulate over
+        let mut cells = empty_board(10, 20);
+        for r in 0..20u32 {
+            for c in 0..10u32 {
+                set_cell(&mut cells, 10, r, c, I);
+            }
+        }
+        let m = metrics_10(&cells);
+        assert_eq!(m.well_col_height, 20);
+        assert_eq!(m.well_depth, 0);
+        assert_eq!(m.covered_well, 0);
     }
 }

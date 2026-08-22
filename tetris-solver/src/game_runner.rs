@@ -11,6 +11,9 @@ use crate::strategy::Strategy;
 pub struct GameResult {
     pub pieces_placed: u32,
     pub lines_cleared: u32,
+    /// Clear-size-weighted score (40/100/300/1200 per 1-4 lines, spin bonus):
+    /// selects for tetrises and spins rather than raw line count
+    pub score: u64,
     pub game_over: bool,
 }
 
@@ -33,6 +36,7 @@ pub fn run_game(
     let mut can_hold = true;
     let mut pieces_placed: u32 = 0;
     let mut lines_cleared: u32 = 0;
+    let mut score: u64 = 0;
 
     // Track active column bounds for windowed operations on wide boards
     let mut active_range: Option<(u32, u32)> = None;
@@ -63,6 +67,7 @@ pub fn run_game(
                 return GameResult {
                     pieces_placed,
                     lines_cleared,
+                    score,
                     game_over: true,
                 };
             }
@@ -77,16 +82,18 @@ pub fn run_game(
 
         let p = &result.placement;
 
-        if p.landing_row < 0 {
+        // Topout: a placed cell above the visible board. The origin row alone
+        // can be negative for rotations whose cells sit lower in the shape box.
+        let shape = pieces::get_shape(p.piece_type, p.rotation);
+        let min_cell_row = shape.iter().map(|&(dr, _)| p.landing_row + dr as i32).min().unwrap();
+        if min_cell_row < 0 {
             return GameResult {
                 pieces_placed,
                 lines_cleared,
+                score,
                 game_over: true,
             };
         }
-
-        // Update active column bounds based on placed piece
-        let shape = pieces::get_shape(p.piece_type, p.rotation);
         let piece_min = shape.iter().map(|&(_, dc)| (p.col + dc as i32).max(0) as u32).min().unwrap();
         let piece_max = shape.iter().map(|&(_, dc)| (p.col + dc as i32).min(width as i32 - 1) as u32).max().unwrap();
 
@@ -107,6 +114,16 @@ pub fn run_game(
             board::simulate_place(&cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col);
         cells = new_cells;
         lines_cleared += cleared;
+        score += match cleared {
+            0 => 0,
+            1 => 40,
+            2 => 100,
+            3 => 300,
+            _ => 1200,
+        };
+        if result.spin == crate::movegen::SPIN_FULL && cleared > 0 {
+            score += 300 * cleared as u64;
+        }
         pieces_placed += 1;
 
         let top_filled = cells[..width as usize].iter().any(|&c| c != 0);
@@ -114,6 +131,7 @@ pub fn run_game(
             return GameResult {
                 pieces_placed,
                 lines_cleared,
+                score,
                 game_over: true,
             };
         }
@@ -122,6 +140,7 @@ pub fn run_game(
     GameResult {
         pieces_placed,
         lines_cleared,
+        score,
         game_over: false,
     }
 }

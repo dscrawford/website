@@ -19,7 +19,7 @@ pub fn evaluate(
     strategy: Strategy,
 ) -> f64 {
     evaluator_param::evaluate(
-        cells, width, height, lines_cleared, landing_row,
+        cells, width, height, lines_cleared, 0, 0, landing_row,
         piece_type, rotation, scoring_urgency, target_fill,
         strategy, &FlatParams::default(), &FourWideParams::default(),
     )
@@ -54,11 +54,15 @@ mod tests {
     }
 
     #[test]
-    fn above_target_rewards_line_clears() {
+    fn above_target_rewards_quads_but_prices_singles() {
+        // Phase 3 economics: in scoring mode a tetris is strongly positive
+        // while a single is a priced burn (it kills the tetris opportunity)
         let cells = empty_board(10, 20);
-        let score_0 = evaluate(&cells, 10, 20, 0, 18, T, 0, 1.0, 0.0, Strategy::Flat);
-        let score_1 = evaluate(&cells, 10, 20, 1, 18, T, 0, 1.0, 0.0, Strategy::Flat);
-        assert!(score_1 > score_0, "Above target, clears ({}) should beat no clears ({})", score_1, score_0);
+        let score_0 = evaluate(&cells, 10, 20, 0, 18, I, 0, 1.0, 0.0, Strategy::Flat);
+        let score_1 = evaluate(&cells, 10, 20, 1, 18, I, 0, 1.0, 0.0, Strategy::Flat);
+        let score_4 = evaluate(&cells, 10, 20, 4, 18, I, 0, 1.0, 0.0, Strategy::Flat);
+        assert!(score_4 > score_0, "quad ({}) should beat no clears ({})", score_4, score_0);
+        assert!(score_1 < score_0, "single ({}) should cost vs no clears ({})", score_1, score_0);
     }
 
     #[test]
