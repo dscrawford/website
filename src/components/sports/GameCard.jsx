@@ -6,7 +6,7 @@ import './GameCard.css'
 export default function GameCard({ game }) {
   if (!game) return null
 
-  const { homeTeam, awayTeam, status, broadcasts } = game
+  const { homeTeam, awayTeam, status, broadcasts, startTime } = game
   const isLiveOrFinal = status.state === 'in' || status.state === 'post'
   const homeWinning = isLiveOrFinal && homeTeam.score > awayTeam.score
   const awayWinning = isLiveOrFinal && awayTeam.score > homeTeam.score
@@ -18,7 +18,7 @@ export default function GameCard({ game }) {
         <TeamRow team={homeTeam} isWinning={homeWinning} />
       </div>
       <div className="game-footer">
-        <StatusBadge status={status} />
+        <StatusBadge status={status} startTime={startTime} />
         <BroadcastBadge networks={broadcasts} />
       </div>
     </div>

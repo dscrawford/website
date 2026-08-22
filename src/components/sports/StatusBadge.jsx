@@ -1,13 +1,16 @@
 import './StatusBadge.css'
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status, startTime }) {
   if (!status) return null
 
   const { state, detail } = status
 
   if (state === 'pre') {
-    const time = status.detail || formatStartTime(detail)
-    return <span className="status-badge status-pre">{time}</span>
+    return (
+      <span className="status-badge status-pre">
+        {formatDateTime(startTime, detail)}
+      </span>
+    )
   }
 
   if (state === 'in') {
@@ -19,17 +22,37 @@ export default function StatusBadge({ status }) {
     )
   }
 
-  return <span className="status-badge status-final">FINAL</span>
+  // post / final
+  return (
+    <span className="status-badge status-final">
+      {detail || 'FINAL'}
+      {startTime && <span className="status-date"> · {formatDate(startTime)}</span>}
+    </span>
+  )
 }
 
-function formatStartTime(dateStr) {
-  if (!dateStr) return 'TBD'
+function formatDateTime(dateStr, fallback) {
+  if (!dateStr) return fallback || 'TBD'
   try {
-    return new Date(dateStr).toLocaleTimeString([], {
-      hour: 'numeric',
-      minute: '2-digit',
-    })
+    const d = new Date(dateStr)
+    if (Number.isNaN(d.getTime())) return fallback || 'TBD'
+    const month = d.toLocaleDateString([], { month: 'short' })
+    const day = d.getDate()
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    return `${month} ${day}, ${time}`
   } catch {
-    return dateStr
+    return fallback || 'TBD'
+  }
+}
+
+function formatDate(dateStr) {
+  try {
+    const d = new Date(dateStr)
+    if (Number.isNaN(d.getTime())) return ''
+    const month = d.toLocaleDateString([], { month: 'short' })
+    const day = d.getDate()
+    return `${month} ${day}`
+  } catch {
+    return ''
   }
 }
