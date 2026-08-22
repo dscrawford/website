@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node --watch server/src/index.js",
     "build": "vite build",
     "wasm:build": "cd tetris-solver && wasm-pack build --target web --out-dir ../src/tetris-solver-pkg",
     "wasm:dev": "cd tetris-solver && wasm-pack build --target web --dev --out-dir ../src/tetris-solver-pkg",

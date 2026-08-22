@@ -73,6 +73,8 @@ impl Individual {
 
     /// Uniform crossover: 50/50 per gene from self or other.
     pub fn crossover(&self, other: &Self, rng: &mut impl Rng) -> Self {
+        // zip would silently truncate a mismatched genome to the shorter parent
+        debug_assert_eq!(self.genes.len(), other.genes.len(), "crossover across genome sizes");
         let genes = self
             .genes
             .iter()

@@ -1,0 +1,53 @@
+.sports-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #0a0a1a;
+  color: #e0e0e0;
+}
+
+.sports-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 24px 40px;
+}
+
+.sports-title {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin: 0 0 24px;
+  color: #ffffff;
+}
+
+.sports-status {
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+}
+
+.sports-error {
+  text-align: center;
+  color: #d32f2f;
+  font-size: 14px;
+}
+
+.sports-updated {
+  text-align: center;
+  color: #555;
+  font-size: 12px;
+  margin-top: 24px;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 768px) {
+  .sports-content {
+    padding: 70px 16px 32px;
+  }
+
+  .sports-title {
+    font-size: 22px;
+  }
+}

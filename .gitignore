@@ -7,3 +7,5 @@ target/
 src/tetris-solver-pkg/
 public/data/
 data/
+dump.rdb
+.claude-flow/

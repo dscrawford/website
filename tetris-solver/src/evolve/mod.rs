@@ -46,7 +46,9 @@ impl Default for EvolutionConfig {
     }
 }
 
-/// Evaluate an individual's fitness: mean lines_per_piece across all (width, game) combos.
+/// Evaluate an individual's fitness: mean clear-weighted score per piece
+/// (normalized by 100) across all (width, game) combos — selects for
+/// tetrises/spins, not just line count.
 ///
 /// Pieces per game scales with board width: `config.pieces_per_game * (width / 10)`.
 fn evaluate_fitness(
@@ -75,7 +77,7 @@ fn evaluate_fitness(
                 config.target_fill, &mut rng,
             );
 
-            total_lines += result.lines_cleared as f64;
+            total_lines += result.score as f64 / 100.0;
             total_pieces += result.pieces_placed as f64;
         }
     }
@@ -193,12 +195,14 @@ mod tests {
 
     #[test]
     fn defaults_have_positive_fitness() {
+        // Multiple games: a single 50-piece game is seed-brittle (can end
+        // with 0 clears even for a healthy solver)
         let config = EvolutionConfig {
             generations: 0,
             mu: 2,
             lambda: 2,
-            pieces_per_game: 50,
-            games_per_eval: 1,
+            pieces_per_game: 100,
+            games_per_eval: 3,
             widths: vec![10],
             ..Default::default()
         };

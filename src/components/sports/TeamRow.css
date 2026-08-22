@@ -1,0 +1,32 @@
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: #aaa;
+}
+
+.team-row.team-winning {
+  color: #fff;
+}
+
+.team-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.team-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.team-score {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+}

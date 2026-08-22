@@ -67,10 +67,59 @@ pub const PIECE_SHAPES: [[[( i8, i8); CELLS_PER_PIECE]; ROTATION_COUNT]; PIECE_C
 ];
 
 /// Get the shape offsets for a piece type and rotation.
-/// piece_type is 1-7, rotation is 0-3.
+/// piece_type is 1-7, rotation is 0-3. Out-of-range inputs are clamped as
+/// defense in depth — the WASM boundary in lib.rs validates first.
 #[inline]
 pub fn get_shape(piece_type: u8, rotation: u8) -> &'static [(i8, i8); CELLS_PER_PIECE] {
-    &PIECE_SHAPES[(piece_type - 1) as usize][rotation as usize]
+    debug_assert!((1..=7).contains(&piece_type), "invalid piece_type {}", piece_type);
+    let p = (piece_type as usize).saturating_sub(1).min(PIECE_COUNT - 1);
+    &PIECE_SHAPES[p][(rotation & 3) as usize]
+}
+
+pub const KICK_TESTS: usize = 5;
+
+/// SRS wall kicks as (row, col) offsets, mirroring src/game-engine/pieces.js
+/// exactly (rows increase downward). Indexed by the from-rotation.
+pub const WALL_KICKS_CW: [[(i8, i8); KICK_TESTS]; ROTATION_COUNT] = [
+    [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],  // 0>1
+    [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],    // 1>2
+    [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],     // 2>3
+    [(0, 0), (0, -1), (1, -1), (-2, 0), (-2, -1)], // 3>0
+];
+
+pub const WALL_KICKS_CCW: [[(i8, i8); KICK_TESTS]; ROTATION_COUNT] = [
+    [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],     // 0>3
+    [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],    // 1>0
+    [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],  // 2>1
+    [(0, 0), (0, -1), (1, -1), (-2, 0), (-2, -1)], // 3>2
+];
+
+pub const WALL_KICKS_I_CW: [[(i8, i8); KICK_TESTS]; ROTATION_COUNT] = [
+    [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],   // 0>1
+    [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],   // 1>2
+    [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],   // 2>3
+    [(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)],   // 3>0
+];
+
+pub const WALL_KICKS_I_CCW: [[(i8, i8); KICK_TESTS]; ROTATION_COUNT] = [
+    [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],   // 0>3
+    [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],   // 1>0
+    [(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)],   // 2>1
+    [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],   // 3>2
+];
+
+/// Kick offsets to try, in order, for rotating `piece_type` from `from_rot`
+/// in the given direction. O pieces don't kick (rotation is identity).
+#[inline]
+pub fn kick_table(piece_type: u8, from_rot: u8, clockwise: bool) -> &'static [(i8, i8); KICK_TESTS] {
+    let from = (from_rot & 3) as usize;
+    if piece_type == I {
+        if clockwise { &WALL_KICKS_I_CW[from] } else { &WALL_KICKS_I_CCW[from] }
+    } else if clockwise {
+        &WALL_KICKS_CW[from]
+    } else {
+        &WALL_KICKS_CCW[from]
+    }
 }
 
 /// Get the width span of a piece in a given rotation (max_col - min_col + 1).
@@ -206,5 +255,46 @@ mod tests {
     #[test]
     fn l_piece_shapes_match_js() {
         assert_eq!(get_shape(L, 0), &[(0, 2), (1, 0), (1, 1), (1, 2)]);
+    }
+
+    #[test]
+    fn kick_tables_first_test_is_identity() {
+        for from in 0..4u8 {
+            for &cw in &[true, false] {
+                assert_eq!(kick_table(T, from, cw)[0], (0, 0));
+                assert_eq!(kick_table(I, from, cw)[0], (0, 0));
+            }
+        }
+    }
+
+    #[test]
+    fn jlstz_kicks_match_js_tables() {
+        // Spot-check against src/game-engine/pieces.js WALL_KICKS
+        assert_eq!(kick_table(T, 0, true), &[(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)]);
+        assert_eq!(kick_table(J, 1, true), &[(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)]);
+        // CCW '1>0' from WALL_KICKS_CCW
+        assert_eq!(kick_table(S, 1, false), &[(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)]);
+        assert_eq!(kick_table(Z, 0, false), &[(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)]);
+    }
+
+    #[test]
+    fn i_kicks_match_js_tables() {
+        assert_eq!(kick_table(I, 0, true), &[(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)]);
+        assert_eq!(kick_table(I, 3, true), &[(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)]);
+        assert_eq!(kick_table(I, 1, false), &[(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)]);
+    }
+
+    #[test]
+    fn ccw_kicks_are_negated_reverse_cw() {
+        // Rotating from>to CCW must mirror to>from CW: offsets are negated.
+        for from in 0..4usize {
+            let to = (from + 3) % 4;
+            for i in 0..KICK_TESTS {
+                let (dr, dc) = WALL_KICKS_CW[to][i];
+                assert_eq!(WALL_KICKS_CCW[from][i], (-dr, -dc), "JLSTZ from {} test {}", from, i);
+                let (dr, dc) = WALL_KICKS_I_CW[to][i];
+                assert_eq!(WALL_KICKS_I_CCW[from][i], (-dr, -dc), "I from {} test {}", from, i);
+            }
+        }
     }
 }

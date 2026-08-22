@@ -1,5 +1,6 @@
 pub mod pieces;
 pub mod board;
+pub mod movegen;
 pub mod placement;
 pub mod params;
 pub mod evaluator_param;
@@ -34,7 +35,7 @@ pub fn solve(
     height: u32,
     current_type: u8,
     _current_rotation: u8,
-    current_row: i32,
+    _current_row: i32,
     _current_col: i32,
     hold: i8,
     can_hold: bool,
@@ -42,35 +43,82 @@ pub fn solve(
     target_fill_ratio: f64,
     strategy: u8,
 ) -> Vec<u8> {
-    let hold_type = if hold < 0 { 0u8 } else { hold as u8 };
+    // Validate untrusted JS inputs: out-of-range piece types index into
+    // PIECE_SHAPES, and mismatched cell buffers index out of bounds — both
+    // would trap the module.
+    const MAX_BOARD_CELLS: usize = 1 << 20;
+    let valid_piece = |t: u8| (1..=7).contains(&t);
+    if !valid_piece(current_type)
+        || width == 0
+        || height == 0
+        || !target_fill_ratio.is_finite()
+        || !(0.0..=1.0).contains(&target_fill_ratio)
+        || (width as usize).saturating_mul(height as usize) != board_cells.len()
+        || board_cells.len() > MAX_BOARD_CELLS
+    {
+        return vec![moves::SOFT_DROP];
+    }
+    let hold_type = if (1..=7).contains(&hold) { hold as u8 } else { 0u8 };
+    let queue: Vec<u8> = next_queue.iter().copied().filter(|&t| valid_piece(t)).collect();
     let strat = strategy::Strategy::from_u8(strategy);
 
-    let result = solver::solve(
+    let mut sp = params::SolverParams::default();
+    sp.lookahead_breadth =
+        scaled_lookahead_breadth((width * height) as usize, sp.lookahead_breadth);
+
+    let result = solver_param::solve_param(
         board_cells,
         width,
         height,
         current_type,
         hold_type,
         can_hold,
-        next_queue,
+        &queue,
         target_fill_ratio,
         strat,
+        &sp,
+        &params::FlatParams::default(),
+        &params::FourWideParams::default(),
     );
 
     match result {
-        Some(r) => {
-            // Calculate spawn column for the piece being placed
-            let placed_type = r.placement.piece_type;
-            let shape = pieces::get_shape(placed_type, 0);
-            let cols: Vec<i8> = shape.iter().map(|&(_, c)| c).collect();
-            let piece_width = cols.iter().max().unwrap() - cols.iter().min().unwrap() + 1;
-            let spawn_col = (width as i32 - piece_width as i32) / 2;
-
-            // spawn_row is the current piece row (where the bot starts executing from)
-            let spawn_row = current_row;
-
-            moves::generate_moves(&r.placement, spawn_col, 0, spawn_row, r.use_hold)
-        }
+        // Path is computed from the spawn state; the JS side solves once per
+        // piece right after spawn, so the piece is at spawn when this runs.
+        Some(r) => moves::assemble_moves(&r.path, r.use_hold),
         None => vec![moves::SOFT_DROP], // fallback: just drop one row
+    }
+}
+
+/// Scale lookahead breadth by board area to keep per-piece solve latency
+/// bounded (~1ms at 10x20 up to ~31ms at 40x80 with full breadth).
+pub(crate) fn scaled_lookahead_breadth(area: usize, base: f64) -> f64 {
+    if area <= 1000 {
+        base.min(8.0)
+    } else if area <= 3600 {
+        4.0
+    } else {
+        2.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scaled_lookahead_breadth;
+
+    #[test]
+    fn breadth_scaling_boundaries() {
+        for (area, expected) in [
+            (999, 8.0),
+            (1000, 8.0),
+            (1001, 4.0),
+            (3599, 4.0),
+            (3600, 4.0),
+            (3601, 2.0),
+            (80_000, 2.0),
+        ] {
+            assert_eq!(scaled_lookahead_breadth(area, 8.0), expected, "area {}", area);
+        }
+        // Promoted genomes with huge breadth stay capped on small boards
+        assert_eq!(scaled_lookahead_breadth(200, 40.0), 8.0);
     }
 }

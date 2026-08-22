@@ -1,0 +1,32 @@
+.league-section {
+  margin-bottom: 32px;
+}
+
+.league-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #e0e0e0;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.league-empty {
+  color: #555;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}
+
+.league-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .league-grid {
+    grid-template-columns: 1fr;
+  }
+}
