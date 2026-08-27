@@ -69,7 +69,7 @@ export default function TetrisBackground({ active, onStateChange, onAiInfoChange
 
     const ctx = canvas.getContext('2d')
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    renderBoard(ctx, state, cellSize, displayW, displayH)
+    renderBoard(ctx, state, cellSize, displayW, displayH, dpr)
   }, [cellSize])
 
   // Auto-solver: controlled by aiEnabled toggle (independent of card focus)

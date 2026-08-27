@@ -4,6 +4,7 @@ use crate::movegen::{self, FoundPlacement};
 use crate::params::{FlatParams, FourWideParams, SolverParams};
 use crate::pieces;
 use crate::placement::Placement;
+use crate::scorer::ScoreContext;
 use crate::solver::SolveResult;
 use crate::strategy::Strategy;
 
@@ -36,9 +37,10 @@ pub fn solve_param(
     let target_fill = target_fill_ratio;
 
     let (ws0, we0) = board::well_column_range(width);
-    let base_metrics = board::compute_all_metrics(cells, width, height, ws0, we0);
+    let mut ctx = ScoreContext::new(cells, width, height, ws0, we0);
+    let base_metrics = ctx.base().clone();
     let avg_fill = base_metrics.aggregate_height as f64 / (width as f64 * height as f64);
-    let urgency = scoring_urgency(avg_fill, target_fill, sp.sigmoid_k);
+    let _urgency = scoring_urgency(avg_fill, target_fill, sp.sigmoid_k);
     let below_target = avg_fill < target_fill;
     let mode = evaluator_param::derive_mode(&base_metrics, width, height, target_fill);
     // Release the held I when the stack is dangerously high — hoarding it
@@ -58,7 +60,7 @@ pub fn solve_param(
             let mut best: Option<(f64, SolveResult)> = None;
             for cand in alt_placements {
                 let score = score_placement_param(
-                    cells, width, height, &cand.placement, cand.spin, base_metrics.well_col, mode, urgency, target_fill, strategy, sp, fp, fwp,
+                    &mut ctx, &cand.placement, cand.spin, base_metrics.well_col, mode, target_fill, strategy, sp, fp, fwp,
                 );
                 update_best(&mut best, score, cand, true);
             }
@@ -73,7 +75,7 @@ pub fn solve_param(
     let current_placements = movegen::find_placements(cells, width, height, current_type);
     for cand in current_placements {
         let score = score_placement_param(
-            cells, width, height, &cand.placement, cand.spin, base_metrics.well_col, mode, urgency, target_fill, strategy, sp, fp, fwp,
+            &mut ctx, &cand.placement, cand.spin, base_metrics.well_col, mode, target_fill, strategy, sp, fp, fwp,
         );
         scored.push((score, cand, false));
     }
@@ -93,7 +95,7 @@ pub fn solve_param(
                 let alt_placements = movegen::find_placements(cells, width, height, alt_type);
                 for cand in alt_placements {
                     let score = score_placement_param(
-                        cells, width, height, &cand.placement, cand.spin, base_metrics.well_col, mode, urgency, target_fill, strategy, sp, fp, fwp,
+                        &mut ctx, &cand.placement, cand.spin, base_metrics.well_col, mode, target_fill, strategy, sp, fp, fwp,
                     );
                     scored.push((score, cand, true));
                 }
@@ -189,17 +191,14 @@ fn finalize_with_lookahead(
             board::simulate_place_into(
                 cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col, &mut board2,
             );
-            let metrics2 = if width > 20 {
-                board::compute_metrics_windowed(&board2, width, height, ws, we, c_lo, c_hi)
-            } else {
-                board::compute_all_metrics(&board2, width, height, ws, we)
-            };
-            let mode2 = evaluator_param::derive_mode(&metrics2, width, height, target_fill);
+            let mut ctx2 = ScoreContext::new(&board2, width, height, ws, we);
+            let well_col2 = ctx2.base().well_col;
+            let mode2 = evaluator_param::derive_mode(ctx2.base(), width, height, target_fill);
             let mut best2 = LOOKAHEAD_TOPOUT;
             for cand2 in movegen::find_placements_windowed(&board2, width, height, next, c_lo, c_hi) {
-                let s2 = score_placement_fast(
-                    board2.as_mut_slice(), width, height, &cand2.placement, cand2.spin, metrics2.well_col,
-                    mode2, 0.0, target_fill, strategy, sp, fp, fwp, ws, we, c_lo, c_hi,
+                let s2 = score_placement_param(
+                    &mut ctx2, &cand2.placement, cand2.spin, well_col2, mode2,
+                    target_fill, strategy, sp, fp, fwp,
                 );
                 if s2 > best2 {
                     best2 = s2;
@@ -227,29 +226,21 @@ fn finalize_with_lookahead(
 
 /// Score a single placement using parameterized evaluation.
 fn score_placement_param(
-    cells: &[u8],
-    width: u32,
-    height: u32,
+    ctx: &mut ScoreContext,
     p: &Placement,
     spin: u8,
     well_col: u32,
     mode: AiMode,
-    urgency: f64,
     target_fill: f64,
     strategy: Strategy,
     sp: &SolverParams,
     fp: &FlatParams,
     fwp: &FourWideParams,
 ) -> f64 {
-    let (_, eroded) = board::clears_and_eroded(
-        cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col,
-    );
-    let (new_cells, lines) =
-        board::simulate_place(cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col);
-
-    let _ = urgency;
-    let (ws, we) = board::well_column_range(width);
-    let metrics = board::compute_all_metrics(&new_cells, width, height, ws, we);
+    let width = ctx.width();
+    let height = ctx.height();
+    let (lines, eroded, metrics) =
+        ctx.score(p.piece_type, p.rotation, p.landing_row, p.col);
     let post_fill = metrics.aggregate_height as f64 / (width as f64 * height as f64);
     let above_target = post_fill >= target_fill;
     let base = evaluator_param::evaluate_fast(
@@ -299,11 +290,11 @@ fn score_placement_param(
 
 // === Fast path for evolution: reuses buffer, single-pass metrics ===
 
-/// Solve using no-copy placement evaluation and windowed metrics.
-/// `active_col_range` is an optional hint for the active column bounds (avoids full scan).
-/// Note: temporarily mutates `cells` during scoring but restores original state.
+/// Solve using windowed movegen and incremental scoring.
+/// `active_col_range` is an optional hint for the active column bounds
+/// (avoids a full scan). `cells` is never mutated.
 pub fn solve_param_fast(
-    cells: &mut [u8],
+    cells: &[u8],
     width: u32,
     height: u32,
     current_type: u8,
@@ -333,13 +324,10 @@ pub fn solve_param_fast(
         (0u32, width - 1)
     };
 
-    let base_metrics = if width > 20 {
-        board::compute_metrics_windowed(cells, width, height, well_start, well_end, col_min, col_max)
-    } else {
-        board::compute_all_metrics(cells, width, height, well_start, well_end)
-    };
+    let mut ctx = ScoreContext::new(cells, width, height, well_start, well_end);
+    let base_metrics = ctx.base().clone();
     let avg_fill = base_metrics.aggregate_height as f64 / (width as f64 * height as f64);
-    let urgency = scoring_urgency(avg_fill, target_fill, sp.sigmoid_k);
+    let _urgency = scoring_urgency(avg_fill, target_fill, sp.sigmoid_k);
     let below_target = avg_fill < target_fill;
     let mode = evaluator_param::derive_mode(&base_metrics, width, height, target_fill);
     let keep_i_held =
@@ -357,9 +345,8 @@ pub fn solve_param_fast(
             let alt_placements = movegen::find_placements_windowed(cells, width, height, alt_type, col_min, col_max);
             let mut best: Option<(f64, SolveResult)> = None;
             for cand in alt_placements {
-                let score = score_placement_fast(
-                    cells, width, height, &cand.placement, cand.spin, base_metrics.well_col, mode, urgency, target_fill, strategy, sp, fp, fwp,
-                    well_start, well_end, col_min, col_max,
+                let score = score_placement_param(
+                    &mut ctx, &cand.placement, cand.spin, base_metrics.well_col, mode, target_fill, strategy, sp, fp, fwp,
                 );
                 update_best(&mut best, score, cand, true);
             }
@@ -373,9 +360,8 @@ pub fn solve_param_fast(
 
     let current_placements = movegen::find_placements_windowed(cells, width, height, current_type, col_min, col_max);
     for cand in current_placements {
-        let score = score_placement_fast(
-            cells, width, height, &cand.placement, cand.spin, base_metrics.well_col, mode, urgency, target_fill, strategy, sp, fp, fwp,
-            well_start, well_end, col_min, col_max,
+        let score = score_placement_param(
+            &mut ctx, &cand.placement, cand.spin, base_metrics.well_col, mode, target_fill, strategy, sp, fp, fwp,
         );
         scored.push((score, cand, false));
     }
@@ -394,9 +380,8 @@ pub fn solve_param_fast(
             } else {
                 let alt_placements = movegen::find_placements_windowed(cells, width, height, alt_type, col_min, col_max);
                 for cand in alt_placements {
-                    let score = score_placement_fast(
-                        cells, width, height, &cand.placement, cand.spin, base_metrics.well_col, mode, urgency, target_fill, strategy, sp, fp, fwp,
-                        well_start, well_end, col_min, col_max,
+                    let score = score_placement_param(
+                        &mut ctx, &cand.placement, cand.spin, base_metrics.well_col, mode, target_fill, strategy, sp, fp, fwp,
                     );
                     scored.push((score, cand, true));
                 }
@@ -404,6 +389,7 @@ pub fn solve_param_fast(
         }
     }
 
+    drop(ctx);
     let next_current = next_queue.first().copied().unwrap_or(0);
     let next_after_hold = if hold > 0 {
         next_current
@@ -416,76 +402,6 @@ pub fn solve_param_fast(
     )
 }
 
-/// Score a placement using no-copy simulate and windowed metrics.
-fn score_placement_fast(
-    cells: &mut [u8],
-    width: u32,
-    height: u32,
-    p: &Placement,
-    spin: u8,
-    well_col: u32,
-    mode: AiMode,
-    _urgency: f64,
-    target_fill: f64,
-    strategy: Strategy,
-    sp: &SolverParams,
-    fp: &FlatParams,
-    fwp: &FourWideParams,
-    well_start: u32,
-    well_end: u32,
-    col_min: u32,
-    col_max: u32,
-) -> f64 {
-    let (lines, eroded, metrics) = board::score_placement_no_copy(
-        cells, width, height, p.piece_type, p.rotation, p.landing_row, p.col,
-        well_start, well_end, col_min, col_max,
-    );
-    let post_fill = metrics.aggregate_height as f64 / (width as f64 * height as f64);
-    let above_target = post_fill >= target_fill;
-
-    let base = evaluator_param::evaluate_fast(
-        &metrics, width, height, lines, eroded, spin, mode, p.landing_row, p.piece_type,
-        p.rotation, target_fill, strategy, fp, fwp,
-    );
-
-    // Flat clear pricing now lives in the evaluator (w_clear1..4); the
-    // legacy per-line bonus would make priced burns net-positive again
-    let clear_bonus = match strategy {
-        Strategy::FourWide if lines > 0 && above_target => {
-            sp.fw_tetris_bonus_max * (lines as f64 / 4.0)
-        }
-        _ => 0.0,
-    };
-
-    let well_penalty = match strategy {
-        Strategy::FourWide => {
-            let in_well = board::placement_cells_in_well(
-                p.piece_type, p.rotation, p.landing_row, p.col, well_start, well_end,
-            );
-            if p.piece_type == pieces::I && above_target {
-                0.0
-            } else {
-                sp.fw_well_cell_penalty * in_well as f64
-            }
-        }
-        Strategy::Flat => {
-            // Contaminating the (pre-placement) well without clearing blocks
-            // the tetris payoff — StackRabbit's desperation-piece penalty
-            if lines == 0 {
-                let shape = pieces::get_shape(p.piece_type, p.rotation);
-                let in_well = shape
-                    .iter()
-                    .filter(|&&(_, dc)| p.col + dc as i32 == well_col as i32)
-                    .count();
-                sp.flat_well_cell_penalty * in_well as f64
-            } else {
-                0.0
-            }
-        }
-    };
-
-    base + clear_bonus + well_penalty
-}
 
 /// Find the leftmost and rightmost occupied columns, with margin.
 /// Returns (col_min, col_max) for windowed operations.

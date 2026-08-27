@@ -363,7 +363,7 @@ pub fn max_height(cells: &[u8], width: u32, height: u32) -> u32 {
 
 /// All board metrics computed in a single pass (or minimal passes).
 /// Avoids 5-7 separate O(w*h) scans per placement.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BoardMetrics {
     pub row_transitions: u32,
     pub column_transitions: u32,

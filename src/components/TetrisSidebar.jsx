@@ -43,37 +43,20 @@ function PiecePreview({ pieceType, size = 80 }) {
   return <canvas ref={canvasRef} width={size} height={size} className="piece-preview-canvas" />
 }
 
-function SpeedInput({ value, onChange }) {
-  const [draft, setDraft] = useState(String(value))
-  const [editing, setEditing] = useState(false)
-
-  useEffect(() => {
-    if (!editing) setDraft(String(value))
-  }, [value, editing])
-
-  const commit = () => {
-    setEditing(false)
-    const num = Math.floor(Number(draft))
-    if (num >= 1 && num <= 999) {
-      onChange?.(num)
-    } else {
-      setDraft(String(value))
-    }
-  }
-
+function SpeedSlider({ value, onChange }) {
   return (
-    <div className="speed-input-row">
+    <div className="speed-slider-row">
       <input
-        type="text"
-        inputMode="numeric"
-        value={draft}
-        onFocus={(e) => { setEditing(true); e.target.select() }}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur() }}
-        className="speed-input"
+        type="range"
+        min="1"
+        max="20"
+        step="1"
+        value={value}
+        onChange={(e) => onChange?.(Number(e.target.value))}
+        className="speed-slider"
+        aria-label="Game speed multiplier"
       />
-      <span className="sidebar-value">x</span>
+      <span className="sidebar-value speed-slider-value">{value}x</span>
     </div>
   )
 }
@@ -146,7 +129,7 @@ export default function TetrisSidebar({
         onPointerDown={stopPropagation}
       >
         <div className="sidebar-label">SPEED:</div>
-        <SpeedInput value={speedMultiplier} onChange={onSpeedChange} />
+        <SpeedSlider value={speedMultiplier} onChange={onSpeedChange} />
       </div>
       <div
         className="sidebar-section sidebar-actions"

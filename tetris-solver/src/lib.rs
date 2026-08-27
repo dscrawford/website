@@ -2,6 +2,7 @@ pub mod pieces;
 pub mod board;
 pub mod movegen;
 pub mod placement;
+pub mod scorer;
 pub mod params;
 pub mod evaluator_param;
 pub mod evaluator;

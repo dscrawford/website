@@ -43,6 +43,9 @@ const OPCODE_ACTIONS = {
   [OPCODE_SOFT_DROP]: softDrop,
 }
 
+// Speeds beyond the animated slider range fall back to instant placement
+export const TELEPORT_SPEED_THRESHOLD = 20
+
 // Hysteresis thresholds for stacking/scoring cycle
 const STACK_TARGET = 0.75  // stack up to 75% fill
 const SCORE_TARGET = 0.10  // score down to 10% fill
@@ -124,8 +127,8 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     window.__tetrisAI = aiInfoRef.current
     const speed = speedRef.current
 
-    // --- HIGH SPEED PATH (>= 10x) ---
-    if (speed >= 10) {
+    // --- TELEPORT PATH (beyond the animated slider range) ---
+    if (speed > TELEPORT_SPEED_THRESHOLD) {
       let s = stateRef.current
       let iterations = 0
       const maxIterations = 3
@@ -165,7 +168,7 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       return
     }
 
-    // --- NORMAL SPEED PATH (< 10x) ---
+    // --- ANIMATED PATH (slider range, 1-20x) ---
 
     // Phase 1: Detect new piece spawn
     if (waitingSnapRef.current !== null) {
