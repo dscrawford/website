@@ -12,6 +12,7 @@ Personal website for Daniel Crawford (danielcrawford.dev). A React 19 + Vite 8 f
 
 ```bash
 # Development
+nix run                  # One-line start: deps + WASM + Redis + API + Vite
 nix develop              # Enter dev shell (Node 22 + Rust 1.94 + wasm-pack)
 npm run dev              # Vite + scores API server (sports needs Redis running)
 npm run dev:web          # Vite dev server only (HMR)

@@ -128,9 +128,51 @@
             cp -r dist $out
           '';
         };
+        # --- One-shot dev CLI: `nix run` boots redis + API + vite ---
+        devCli = pkgs.writeShellApplication {
+          name = "dcraw-dev";
+          runtimeInputs = [
+            rustToolchain
+            pkgs.wasm-pack
+            pkgs.wasm-bindgen-cli
+            pkgs.binaryen
+            pkgs.nodejs_22
+            pkgs.redis
+            pkgs.git
+          ];
+          text = ''
+            ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+            if [ -z "$ROOT" ] || [ ! -f "$ROOT/package.json" ]; then
+              echo "dcraw-dev: run from inside the website repo checkout" >&2
+              exit 1
+            fi
+            cd "$ROOT"
+
+            [ -d node_modules ] || npm install
+            [ -d server/node_modules ] || (cd server && npm install)
+            [ -f src/tetris-solver-pkg/tetris_solver_bg.wasm ] || npm run wasm:build
+
+            if ! redis-cli ping 2>/dev/null | grep -q PONG; then
+              redis-server --daemonize yes --port 6379 --loglevel warning
+              echo "dcraw-dev: redis started on :6379"
+            fi
+
+            exec npm run dev
+          '';
+        };
       in
       {
         packages.default = frontend;
+        packages.dev-cli = devCli;
+
+        apps.default = {
+          type = "app";
+          program = "${devCli}/bin/dcraw-dev";
+        };
+        apps.dev = {
+          type = "app";
+          program = "${devCli}/bin/dcraw-dev";
+        };
 
         packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
           name = "dcraw-website";
