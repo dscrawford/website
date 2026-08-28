@@ -46,19 +46,35 @@ const OPCODE_ACTIONS = {
 // Speeds beyond the animated slider range fall back to instant placement
 export const TELEPORT_SPEED_THRESHOLD = 20
 
-// Hysteresis thresholds for stacking/scoring cycle
-const STACK_TARGET = 0.75  // stack up to 75% fill
+// Hysteresis thresholds for the stacking/scoring cycle. STACK_TARGET is the
+// fill the solver steers toward; the flip to scoring sits slightly below it
+// because the solver's target attraction (and so the climb rate) vanishes at
+// the target itself, so exactly-at-target is never reached.
+const STACK_TARGET = 0.75  // solver target while stacking
+const STACK_FLIP = 0.70    // fill at which we flip to scoring
 const SCORE_TARGET = 0.10  // score down to 10% fill
 
-// Compute average fill ratio from game state
-function avgFill(state) {
-  const board = state.board
-  const total = state.width * state.height
-  let filled = 0
-  for (let i = 0; i < total; i++) {
-    if (board[i] !== 0) filled++
+// Mirrors evaluator_param::well_exempt_fill in the Rust solver: aggregate
+// column height with the well column (rightmost lowest) exempted. Cell-count
+// fill undercounts the stack (covered gaps, empty well) and would sit
+// permanently below the flip threshold.
+export function wellExemptFill(state) {
+  const { board, width, height } = state
+  let aggregate = 0
+  let wellHeight = Infinity
+  for (let col = 0; col < width; col++) {
+    let h = 0
+    for (let row = 0; row < height; row++) {
+      if (board[row * width + col] !== 0) {
+        h = height - row
+        break
+      }
+    }
+    aggregate += h
+    if (h <= wellHeight) wellHeight = h
   }
-  return filled / total
+  const colsExempt = Math.max(width - 1, 1)
+  return Math.min((aggregate - wellHeight) / (colsExempt * height), 1)
 }
 
 export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 1, targetFillRatio = 0.75, strategy = 0) {
@@ -115,8 +131,8 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     }
 
     // --- Update hysteresis mode based on current board fill ---
-    const fill = avgFill(state)
-    if (modeRef.current === 'stacking' && fill >= STACK_TARGET) {
+    const fill = wellExemptFill(state)
+    if (modeRef.current === 'stacking' && fill >= STACK_FLIP) {
       modeRef.current = 'scoring'
     } else if (modeRef.current === 'scoring' && fill <= SCORE_TARGET) {
       modeRef.current = 'stacking'
@@ -135,8 +151,8 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
 
       while (iterations < maxIterations && s && !s.gameOver) {
         // Recompute mode for each piece at high speed
-        const f = avgFill(s)
-        if (modeRef.current === 'stacking' && f >= STACK_TARGET) {
+        const f = wellExemptFill(s)
+        if (modeRef.current === 'stacking' && f >= STACK_FLIP) {
           modeRef.current = 'scoring'
         } else if (modeRef.current === 'scoring' && f <= SCORE_TARGET) {
           modeRef.current = 'stacking'

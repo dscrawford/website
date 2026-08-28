@@ -24,6 +24,26 @@ pub fn well_exempt_fill(m: &board::BoardMetrics, width: u32, height: u32) -> f64
         .min(1.0)
 }
 
+/// Weights were evolved on a 10x20 board (area 200). The target-deviation
+/// term is dimensionless while other terms count cells, so on larger boards
+/// per-cell target attraction collapses and per-cell penalties (top-half
+/// safety, burn rewards) stall the stack near half height. Full area scaling
+/// overshoots the other way: fill is aggregate-height-based, and an attraction
+/// term that dwarfs hole penalties buys height via overhangs until topout.
+/// A sqrt boost on attraction plus shrinking the top-of-board safety terms
+/// splits the correction between both sides of the balance.
+pub fn board_area_ratio(width: u32, height: u32) -> f64 {
+    (width as f64 * height as f64).max(1.0) / 200.0
+}
+
+pub fn target_norm(width: u32, height: u32) -> f64 {
+    board_area_ratio(width, height).sqrt()
+}
+
+pub fn top_penalty_norm(width: u32, height: u32) -> f64 {
+    1.0 / board_area_ratio(width, height)
+}
+
 pub fn derive_mode(m: &board::BoardMetrics, width: u32, height: u32, target_fill: f64) -> AiMode {
     if m.cavities > 0 || m.top_quarter_cells > 0 {
         AiMode::Dig
@@ -112,7 +132,7 @@ fn evaluate_flat_fast(
 
     let fill = well_exempt_fill(m, width, height);
     let deviation = (fill - target_fill).abs();
-    let target_penalty = p.w_height_gap * deviation * deviation;
+    let target_penalty = p.w_height_gap * deviation * deviation * target_norm(width, height);
 
     let digging = mode == AiMode::Dig;
     let scoring = mode == AiMode::Score;
@@ -133,8 +153,9 @@ fn evaluate_flat_fast(
         + p.w_overhangs * m.overhangs as f64
         + p.w_rows_with_holes * m.rows_with_holes as f64
         + p.w_notches * m.notches as f64
-        + p.w_top_half * m.top_half_cells as f64
-        + p.w_top_quarter * m.top_quarter_cells as f64
+        + (p.w_top_half * m.top_half_cells as f64
+            + p.w_top_quarter * m.top_quarter_cells as f64)
+            * top_penalty_norm(width, height)
         + eroded_term;
 
     let well = p.w_well_depth * m.well_depth as f64
@@ -214,7 +235,7 @@ fn evaluate_fw_fast(
     let avg_fill = m.aggregate_height as f64 / (width as f64 * height as f64);
     let below_target = avg_fill < target_fill;
     let deviation = (avg_fill - target_fill).abs();
-    let target_penalty = p.fw_height_gap * deviation * deviation;
+    let target_penalty = p.fw_height_gap * deviation * deviation * target_norm(width, height);
 
     let holes = m.holes as f64;
     let covered = m.covered_cells as f64;
@@ -228,8 +249,9 @@ fn evaluate_fw_fast(
         + p.fw_overhangs * m.overhangs as f64
         + p.fw_rows_with_holes * m.rows_with_holes as f64
         + p.fw_notches * m.notches as f64
-        + p.fw_top_half * m.top_half_cells as f64
-        + p.fw_top_quarter * m.top_quarter_cells as f64
+        + (p.fw_top_half * m.top_half_cells as f64
+            + p.fw_top_quarter * m.top_quarter_cells as f64)
+            * top_penalty_norm(width, height)
         + p.fw_eroded * eroded as f64;
 
     if below_target {
@@ -555,5 +577,42 @@ mod tests {
                 expected[lines as usize]
             );
         }
+    }
+
+    #[test]
+    fn norms_are_unity_on_the_evolution_board_and_scale_with_area() {
+        assert!((target_norm(10, 20) - 1.0).abs() < 1e-12);
+        assert!((top_penalty_norm(10, 20) - 1.0).abs() < 1e-12);
+        assert!((target_norm(40, 40) - 8.0f64.sqrt()).abs() < 1e-12);
+        assert!((top_penalty_norm(40, 40) - 0.125).abs() < 1e-12);
+        assert!((target_norm(71, 40) - 14.2f64.sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn big_board_stack_climbs_past_half_toward_target() {
+        // Weights were evolved on 10x20 where raw top-half cell counts are
+        // comparable to the normalized target-deviation term. On big boards
+        // the counts scale with area and must not outweigh target attraction:
+        // a flat 40x40 stack at 70% well-exempt fill must beat 67.5% when the
+        // target is 75%.
+        let (w, h) = (40u32, 40u32);
+        let mk = |stack_h: u32| {
+            let mut cells = vec![EMPTY; (w * h) as usize];
+            for row in (h - stack_h)..h {
+                for col in 0..w {
+                    cells[(row * w + col) as usize] = I;
+                }
+            }
+            cells
+        };
+        let eval = |cells: &[u8]| {
+            evaluate(
+                cells, w, h, 0, 0, 0, (h - 2) as i32, T, 0, 0.0, 0.75,
+                Strategy::Flat, &FlatParams::default(), &FourWideParams::default(),
+            )
+        };
+        let lo = eval(&mk(27));
+        let hi = eval(&mk(28));
+        assert!(hi > lo, "closer-to-target stack must score higher: hi={hi} lo={lo}");
     }
 }

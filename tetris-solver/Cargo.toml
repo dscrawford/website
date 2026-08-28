@@ -22,6 +22,14 @@ name = "evolve"
 path = "src/bin/evolve.rs"
 required-features = ["evolve"]
 
+[[example]]
+name = "profile_phases"
+required-features = ["evolve"]
+
+[[example]]
+name = "fill_trace"
+required-features = ["evolve"]
+
 # WASM release: optimize for size
 [profile.release]
 opt-level = "s"

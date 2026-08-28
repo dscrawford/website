@@ -17,7 +17,7 @@ const engineMocks = vi.hoisted(() => ({
 
 vi.mock('../../game-engine/engine-interface.js', () => engineMocks)
 
-import { useAutoSolver, TELEPORT_SPEED_THRESHOLD } from '../useAutoSolver.js'
+import { useAutoSolver, TELEPORT_SPEED_THRESHOLD, wellExemptFill } from '../useAutoSolver.js'
 
 const OPCODE_LEFT = 0
 const OPCODE_HARD_DROP = 4
@@ -109,5 +109,62 @@ describe('useAutoSolver — animated vs teleport threshold', () => {
     })
     expect(engineMocks.createGame).toHaveBeenCalledWith(10, 40) // BOARD_HEIGHT
     expect(engineMocks.solveMoves).not.toHaveBeenCalled()
+  })
+})
+
+function boardWithHeights(width, height, heights) {
+  const board = new Array(width * height).fill(0)
+  heights.forEach((h, col) => {
+    for (let row = height - h; row < height; row++) board[row * width + col] = 1
+  })
+  return board
+}
+
+describe('wellExemptFill — mirrors evaluator_param::well_exempt_fill', () => {
+  it('exempts the rightmost lowest column from the fill ratio', () => {
+    const state = { width: 4, height: 4, board: boardWithHeights(4, 4, [2, 3, 1, 1]) }
+    // aggregate 7, well = col 3 (rightmost of the two height-1 columns)
+    expect(wellExemptFill(state)).toBeCloseTo((7 - 1) / (3 * 4), 10)
+  })
+
+  it('counts covered gaps as fill via column heights', () => {
+    const state = { width: 2, height: 4, board: boardWithHeights(2, 4, [0, 0]) }
+    state.board[1 * 2 + 0] = 1 // col 0: single cell at height 3, gap below
+    expect(wellExemptFill(state)).toBeCloseTo(3 / 4, 10)
+  })
+
+  it('is 0 for an empty board and clamps at 1', () => {
+    expect(wellExemptFill({ width: 5, height: 5, board: new Array(25).fill(0) })).toBe(0)
+    expect(wellExemptFill({ width: 5, height: 5, board: new Array(25).fill(1) })).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('useAutoSolver — stack/score hysteresis', () => {
+  beforeEach(() => {
+    engineMocks.solveMoves.mockReset()
+  })
+
+  it('flips to scoring at 70% well-exempt fill and requests the score target', async () => {
+    engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
+    // cols 0-8 at height 15, well empty: 135/180 = 75% well-exempt fill
+    const heights = [...new Array(9).fill(15), 0]
+    const state = baseState({ board: boardWithHeights(10, 20, heights) })
+    const { result } = await setup(1, state)
+    act(() => {
+      result.current.executeMoves(0)
+    })
+    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.10, 10)
+  })
+
+  it('keeps stacking toward the 75% target below the flip threshold', async () => {
+    engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
+    // cols 0-8 at height 12: 108/180 = 60%
+    const heights = [...new Array(9).fill(12), 0]
+    const state = baseState({ board: boardWithHeights(10, 20, heights) })
+    const { result } = await setup(1, state)
+    act(() => {
+      result.current.executeMoves(0)
+    })
+    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.75, 10)
   })
 })
