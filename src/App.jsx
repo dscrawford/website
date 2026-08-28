@@ -122,7 +122,7 @@ function HomePage({ navigate }) {
       />
       {!uiHidden && (
         <>
-          <TopNav navigate={navigate} activePage="home" />
+          <TopNav navigate={navigate} />
           {sidebarVisible && (
             <TetrisSidebar
               nextQueue={gameState?.nextQueue}

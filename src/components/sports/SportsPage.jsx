@@ -28,7 +28,7 @@ export default function SportsPage({ navigate }) {
 
   return (
     <div className="sports-page">
-      <TopNav navigate={navigate} activePage="sports" />
+      <TopNav navigate={navigate} />
       <div className="sports-content">
         <h1 className="sports-title">LIVE SPORTS SCOREBOARD</h1>
         <SportsNav />
