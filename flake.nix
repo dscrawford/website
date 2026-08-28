@@ -230,12 +230,19 @@
           name = "dcraw-website-api";
           tag = "latest";
 
+          # CA bundle for outbound HTTPS (ESPN): the minimal image has no
+          # /etc/ssl, and nix's node defers to the OpenSSL CA store
+          contents = [ pkgs.cacert ];
+
           config = {
             Cmd = [ "${pkgs.nodejs_22}/bin/node" "${serverPkg}/src/index.js" ];
             Env = [
               "REDIS_URL=memory"
               "HOST=127.0.0.1"
               "PORT=3001"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "NODE_OPTIONS=--use-openssl-ca"
             ];
           };
         };
