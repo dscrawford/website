@@ -147,6 +147,18 @@ describe('GET /api/scores/:league/games/:gameId', () => {
     expect(lazyFetcher.getBoxScore).not.toHaveBeenCalled()
   })
 
+  it('serves hash-form ids an empty box score without fetching', async () => {
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/mlb/games/h1a2b3c4d' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      success: true,
+      data: { gameId: 'h1a2b3c4d', teams: [], fetchedAt: null },
+      error: null,
+    })
+    expect(lazyFetcher.getBoxScore).not.toHaveBeenCalled()
+  })
+
   it('returns an empty box score when the fetch yields nothing', async () => {
     lazyFetcher.getBoxScore.mockResolvedValue(null)
     const app = await buildApp()

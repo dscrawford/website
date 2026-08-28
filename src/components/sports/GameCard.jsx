@@ -1,18 +1,13 @@
 import TeamRow from './TeamRow.jsx'
 import StatusBadge from './StatusBadge.jsx'
 import BroadcastBadge from './BroadcastBadge.jsx'
-import BoxScore from './BoxScore.jsx'
-import useBoxScore from '../../hooks/useBoxScore.js'
 import './GameCard.css'
-import { memo, useState } from 'react'
+import { memo } from 'react'
 
-function GameCard({ game, leagueKey }) {
-  const [expanded, setExpanded] = useState(false)
-  const { boxScore, loading, error, ensureLoaded, retry } = useBoxScore(leagueKey, game?.id)
-
+function GameCard({ game, navigate }) {
   if (!game) return null
 
-  const { homeTeam, awayTeam, status, broadcasts, startTime } = game
+  const { id, homeTeam, awayTeam, status, broadcasts, startTime } = game
   const isLiveOrFinal = status.state === 'in' || status.state === 'post'
   const homeWinning = isLiveOrFinal && homeTeam.score > awayTeam.score
   const awayWinning = isLiveOrFinal && awayTeam.score > homeTeam.score
@@ -27,20 +22,17 @@ function GameCard({ game, leagueKey }) {
         <StatusBadge status={status} startTime={startTime} />
         <BroadcastBadge networks={broadcasts} />
       </div>
-      <button
-        type="button"
-        className="box-score-toggle"
-        aria-expanded={expanded}
-        onClick={() => {
-          const next = !expanded
-          if (next) ensureLoaded()
-          setExpanded(next)
-        }}
-      >
-        BOX SCORE {expanded ? '▴' : '▾'}
-      </button>
-      {expanded && (
-        <BoxScore boxScore={boxScore} loading={loading} error={error} onRetry={retry} />
+      {id && (
+        <a
+          className="box-score-link"
+          href={`/sports/${id}`}
+          onClick={(e) => {
+            e.preventDefault()
+            navigate?.(`/sports/${id}`)
+          }}
+        >
+          BOX SCORE →
+        </a>
       )}
     </div>
   )

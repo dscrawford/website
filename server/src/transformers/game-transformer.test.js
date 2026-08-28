@@ -251,3 +251,26 @@ describe('transformScoreboard', () => {
     expect(transformScoreboard({ events }).length).toBe(200)
   })
 })
+
+describe('fallback hash ids', () => {
+  it('derives a stable hash id from teams, sport and start time when id is missing', () => {
+    const event = makeEvent({ id: undefined })
+    const a = transformEvent(event, 'mlb')
+    const b = transformEvent(makeEvent({ id: undefined }), 'mlb')
+    expect(a.id).toMatch(/^h[0-9a-f]{8,16}$/)
+    expect(a.id).toBe(b.id)
+  })
+
+  it('hash id varies with sport and start time', () => {
+    const base = makeEvent({ id: undefined })
+    const mlb = transformEvent(base, 'mlb')
+    const nba = transformEvent(makeEvent({ id: undefined }), 'nba')
+    const later = transformEvent(makeEvent({ id: undefined, date: '2099-01-01T00:00:00Z' }), 'mlb')
+    expect(nba.id).not.toBe(mlb.id)
+    expect(later.id).not.toBe(mlb.id)
+  })
+
+  it('keeps the real ESPN id when present', () => {
+    expect(transformEvent(makeEvent({ id: '123' }), 'mlb').id).toBe('123')
+  })
+})

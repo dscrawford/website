@@ -1,5 +1,5 @@
 import * as lazyFetcher from '../services/lazy-fetcher.js'
-import { LEAGUES, GAME_ID_PATTERN } from '../config.js'
+import { LEAGUES, GAME_ID_PATTERN, HASH_ID_PATTERN } from '../config.js'
 
 const VALID_KEYS = new Set(LEAGUES.map((l) => l.key))
 
@@ -58,6 +58,16 @@ export default async function scoresRoutes(fastify) {
         success: false,
         data: null,
         error: `Unknown league. Valid: ${[...VALID_KEYS].join(', ')}`,
+      }
+    }
+    // Hash-form ids identify games ESPN gave no event id; there is no
+    // upstream to query, so they short-circuit to the empty envelope
+    if (HASH_ID_PATTERN.test(gameId)) {
+      reply.header('Cache-Control', 'public, max-age=300')
+      return {
+        success: true,
+        data: { gameId, teams: [], fetchedAt: null },
+        error: null,
       }
     }
     if (!GAME_ID_PATTERN.test(gameId)) {

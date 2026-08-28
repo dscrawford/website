@@ -1,0 +1,37 @@
+.game-page {
+  max-width: 720px;
+}
+
+.game-page-back {
+  display: inline-block;
+  color: #8888aa;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+
+.game-page-back:hover {
+  color: #e0e0e0;
+}
+
+.game-page-league {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8888aa;
+  margin: 0 0 8px;
+}
+
+.game-page-header {
+  background: rgba(20, 20, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px 20px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}

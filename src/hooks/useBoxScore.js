@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// Box scores are fetched lazily: nothing happens until ensureLoaded() fires
-// (first expand), and the result is kept for the component's lifetime — the
-// server caches with a short TTL, so a refresh is how numbers update
-export default function useBoxScore(leagueKey, gameId) {
+// Live box score for the game page: fetches when the league resolves, then
+// polls while mounted. Laziness holds because this only runs while someone
+// is actually viewing a game page; the server's TTL cache absorbs the rest.
+export default function useBoxScore(leagueKey, gameId, { intervalMs = 30_000 } = {}) {
   const [boxScore, setBoxScore] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const requestedRef = useRef(false)
-  const controllerRef = useRef(null)
+  const abortRef = useRef(null)
 
   const load = useCallback(() => {
     if (!leagueKey || !gameId) return
-    requestedRef.current = true
-    setLoading(true)
-    setError(false)
+    abortRef.current?.abort()
     const controller = new AbortController()
-    controllerRef.current = controller
+    abortRef.current = controller
     fetch(`/api/scores/${leagueKey}/games/${gameId}`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -24,6 +21,7 @@ export default function useBoxScore(leagueKey, gameId) {
       })
       .then((body) => {
         setBoxScore(body?.data ?? null)
+        setError(false)
         setLoading(false)
       })
       .catch((err) => {
@@ -33,16 +31,21 @@ export default function useBoxScore(leagueKey, gameId) {
       })
   }, [leagueKey, gameId])
 
-  useEffect(() => () => controllerRef.current?.abort(), [])
-
-  const ensureLoaded = useCallback(() => {
-    if (requestedRef.current) return
+  useEffect(() => {
+    if (!leagueKey || !gameId) return undefined
     load()
-  }, [load])
+    const timer = setInterval(load, intervalMs)
+    return () => {
+      clearInterval(timer)
+      abortRef.current?.abort()
+    }
+  }, [load, intervalMs, leagueKey, gameId])
 
   const retry = useCallback(() => {
+    setLoading(true)
+    setError(false)
     load()
   }, [load])
 
-  return { boxScore, loading, error, ensureLoaded, retry }
+  return { boxScore, loading, error, retry }
 }

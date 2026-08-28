@@ -51,6 +51,7 @@ export default function SportsPage({ navigate }) {
               id={key}
               label={data?.label || label}
               games={data?.games || EMPTY_GAMES}
+              navigate={navigate}
             />
           )
         })}

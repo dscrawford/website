@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import GameCard from '../GameCard.jsx'
 
 const GAME = {
   id: '401',
-  league: 'mlb',
   startTime: '2026-08-28T20:00:00Z',
   status: { state: 'in', detail: 'Top 5th' },
   broadcasts: [],
@@ -13,16 +12,9 @@ const GAME = {
   awayTeam: { name: 'Reds', abbreviation: 'CIN', score: 2, logo: null, record: null, homeAway: 'away' },
 }
 
-describe('GameCard box score expansion', () => {
+describe('GameCard box score link', () => {
   beforeEach(() => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        data: { gameId: '401', teams: [], fetchedAt: null },
-        error: null,
-      }),
-    })
+    globalThis.fetch = vi.fn()
   })
 
   afterEach(() => {
@@ -30,22 +22,22 @@ describe('GameCard box score expansion', () => {
     delete globalThis.fetch
   })
 
-  it('renders collapsed without fetching (lazy)', () => {
-    render(<GameCard game={GAME} leagueKey="mlb" />)
+  it('renders a box score link without fetching anything', () => {
+    render(<GameCard game={GAME} navigate={vi.fn()} />)
     expect(globalThis.fetch).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: /box score/i }).getAttribute('aria-expanded')).toBe('false')
+    const link = screen.getByRole('link', { name: /box score/i })
+    expect(link.getAttribute('href')).toBe('/sports/401')
   })
 
-  it('expands on click and fetches the box score once', async () => {
-    render(<GameCard game={GAME} leagueKey="mlb" />)
-    const toggle = screen.getByRole('button', { name: /box score/i })
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    await waitFor(() =>
-      expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/games/401', expect.anything())
-    )
-    fireEvent.click(toggle)
-    fireEvent.click(toggle)
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  it('navigates client-side to /sports/{gameId} on click', () => {
+    const navigate = vi.fn()
+    render(<GameCard game={GAME} navigate={navigate} />)
+    fireEvent.click(screen.getByRole('link', { name: /box score/i }))
+    expect(navigate).toHaveBeenCalledWith('/sports/401')
+  })
+
+  it('omits the link when the game has no id', () => {
+    render(<GameCard game={{ ...GAME, id: null }} navigate={vi.fn()} />)
+    expect(screen.queryByRole('link', { name: /box score/i })).toBeNull()
   })
 })

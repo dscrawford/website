@@ -16,7 +16,7 @@ async function fetchAndCache(cfg) {
   const data = {
     league: cfg.key,
     label: cfg.label,
-    games: transformScoreboard(raw),
+    games: transformScoreboard(raw, cfg.key),
     fetchedAt: new Date().toISOString(),
   }
   await cache.set(cfg.key, data)

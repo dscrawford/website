@@ -8,6 +8,8 @@ export const LEAGUES = Object.freeze([
 
 // ESPN event ids are short numeric strings; reject anything else at the edge
 export const GAME_ID_PATTERN = /^\d{1,12}$/
+// Fallback ids for events ESPN gave no id: FNV-1a hex of the matchup
+export const HASH_ID_PATTERN = /^h[0-9a-f]{8,16}$/
 
 export const ESPN_BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'
 

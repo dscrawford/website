@@ -2,7 +2,7 @@ import { memo } from 'react'
 import GameCard from './GameCard.jsx'
 import './LeagueSection.css'
 
-function LeagueSection({ id, label, games }) {
+function LeagueSection({ id, label, games, navigate }) {
   return (
     <section className="league-section" id={id}>
       <h2 className="league-title">{label}</h2>
@@ -11,7 +11,7 @@ function LeagueSection({ id, label, games }) {
       ) : (
         <div className="league-grid">
           {games.map((game) => (
-            <GameCard key={game.id} game={game} leagueKey={id} />
+            <GameCard key={game.id} game={game} navigate={navigate} />
           ))}
         </div>
       )}

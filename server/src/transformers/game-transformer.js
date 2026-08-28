@@ -44,7 +44,19 @@ function extractBroadcasts(competition) {
     .slice(0, 4)
 }
 
-export function transformEvent(event) {
+// FNV-1a: stable, dependency-free fallback id when ESPN omits event.id —
+// derived from the matchup, sport and start time so reloads agree on it
+function hashId(away, home, sport, startTime) {
+  const input = `${away}:${home}:${sport}:${startTime}`
+  let hash = 0x811c9dc5
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return `h${hash.toString(16).padStart(8, '0')}`
+}
+
+export function transformEvent(event, leagueKey = '') {
   const competition = event.competitions?.[0]
   if (!competition) return null
 
@@ -59,10 +71,16 @@ export function transformEvent(event) {
   const status = event.status || {}
   const statusType = status.type || {}
 
+  const homeTeamOut = transformCompetitor(home)
+  const awayTeamOut = transformCompetitor(away)
+  const startTime = str(event.date, 40)
+
   return Object.freeze({
-    id: str(event.id, 32),
-    homeTeam: transformCompetitor(home),
-    awayTeam: transformCompetitor(away),
+    id:
+      str(event.id, 32) ||
+      hashId(awayTeamOut.name, homeTeamOut.name, leagueKey, startTime ?? ''),
+    homeTeam: homeTeamOut,
+    awayTeam: awayTeamOut,
     status: Object.freeze({
       state: ['pre', 'in', 'post'].includes(statusType.state) ? statusType.state : 'pre',
       period: Number.isFinite(status.period) ? status.period : 0,
@@ -71,11 +89,11 @@ export function transformEvent(event) {
       completed: statusType.completed === true,
     }),
     broadcasts: Object.freeze(extractBroadcasts(competition)),
-    startTime: str(event.date, 40),
+    startTime,
   })
 }
 
-export function transformScoreboard(rawData) {
+export function transformScoreboard(rawData, leagueKey = '') {
   if (!rawData?.events) return Object.freeze([])
 
   if (!Array.isArray(rawData.events)) return Object.freeze([])
@@ -85,7 +103,7 @@ export function transformScoreboard(rawData) {
       .map((event) => {
         // One malformed event must not poison the whole league's cycle
         try {
-          return transformEvent(event)
+          return transformEvent(event, leagueKey)
         } catch {
           return null
         }

@@ -5,6 +5,7 @@ import CenterCard from './components/CenterCard.jsx'
 import TetrisBackground from './components/TetrisBackground.jsx'
 import TetrisSidebar from './components/TetrisSidebar.jsx'
 import SportsPage from './components/sports/SportsPage.jsx'
+import GameBoxScorePage from './components/sports/GameBoxScorePage.jsx'
 import SportsErrorBoundary from './components/sports/SportsErrorBoundary.jsx'
 import './App.css'
 
@@ -177,6 +178,15 @@ function App() {
     return (
       <SportsErrorBoundary>
         <SportsPage navigate={navigate} />
+      </SportsErrorBoundary>
+    )
+  }
+
+  const gameMatch = pathname.match(/^\/sports\/([A-Za-z0-9]{1,32})\/?$/)
+  if (gameMatch) {
+    return (
+      <SportsErrorBoundary>
+        <GameBoxScorePage navigate={navigate} gameId={gameMatch[1]} />
       </SportsErrorBoundary>
     )
   }
