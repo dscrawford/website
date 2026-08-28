@@ -128,6 +128,25 @@
             cp -r dist $out
           '';
         };
+        # --- Sports scores API: lazily fetches ESPN on request, memory cache ---
+        serverPkg = pkgs.buildNpmPackage {
+          pname = "dcraw-sports-server";
+          version = "1.0.0";
+          src = pkgs.lib.cleanSourceWith {
+            src = ./server;
+            filter = path: _type: !(pkgs.lib.hasInfix "node_modules" path);
+          };
+
+          npmDepsHash = "sha256-BKoqseH/NVZNlEpggnod2mu775HIMLeN2BOWdnchmSY=";
+
+          dontNpmBuild = true;
+
+          installPhase = ''
+            mkdir -p $out
+            cp -r node_modules src package.json $out/
+          '';
+        };
+
         # --- One-shot dev CLI: `nix run` boots redis + API + vite ---
         devCli = pkgs.writeShellApplication {
           name = "dcraw-dev";
@@ -202,6 +221,22 @@
           config = {
             Cmd = [ "${pkgs.nginxMainline}/bin/nginx" "-c" "/etc/nginx/nginx.conf" ];
             ExposedPorts = { "80/tcp" = {}; };
+          };
+        };
+
+        # Sidecar for the website pod: binds loopback only, nginx proxies
+        # /api/ to it inside the shared pod network namespace
+        packages.apiImage = pkgs.dockerTools.buildLayeredImage {
+          name = "dcraw-website-api";
+          tag = "latest";
+
+          config = {
+            Cmd = [ "${pkgs.nodejs_22}/bin/node" "${serverPkg}/src/index.js" ];
+            Env = [
+              "REDIS_URL=memory"
+              "HOST=127.0.0.1"
+              "PORT=3001"
+            ];
           };
         };
 

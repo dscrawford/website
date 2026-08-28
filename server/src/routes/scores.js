@@ -1,12 +1,11 @@
-import * as cache from '../services/cache.js'
+import * as lazyFetcher from '../services/lazy-fetcher.js'
 import { LEAGUES } from '../config.js'
 
 const VALID_KEYS = new Set(LEAGUES.map((l) => l.key))
 
 export default async function scoresRoutes(fastify) {
-  // Serve a short-lived pre-serialized snapshot: the payload only changes
-  // when the poller refreshes, so per-request Redis reads + stringify are
-  // wasted work and an amplification aid
+  // Short-lived pre-serialized snapshot: bursts of requests reuse one
+  // payload instead of re-running the lazy fetch pipeline + stringify
   let snapshot = { body: null, at: 0 }
 
   fastify.get('/api/scores', async (request, reply) => {
@@ -18,7 +17,7 @@ export default async function scoresRoutes(fastify) {
     }
     const body = JSON.stringify({
       success: true,
-      data: { leagues: await cache.getAll() },
+      data: { leagues: await lazyFetcher.getAll() },
       error: null,
     })
     snapshot = { body, at: Date.now() }
@@ -37,7 +36,7 @@ export default async function scoresRoutes(fastify) {
       }
     }
 
-    const data = await cache.get(league)
+    const data = await lazyFetcher.getLeague(league)
     if (!data) {
       return {
         success: true,

@@ -104,7 +104,7 @@ describe('cache service', () => {
       )
     })
 
-    it('set() swallows errors (never crashes the poller)', async () => {
+    it('set() swallows errors (never crashes the fetcher)', async () => {
       cache.connect()
       currentFakeRedis().set.mockRejectedValue(new Error('write failed'))
       await expect(cache.set('nfl', { games: [] })).resolves.toBeUndefined()

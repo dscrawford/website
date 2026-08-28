@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Fastify from 'fastify'
 
-vi.mock('../services/cache.js', () => ({
+vi.mock('../services/lazy-fetcher.js', () => ({
   getAll: vi.fn(),
-  get: vi.fn(),
+  getLeague: vi.fn(),
 }))
 
-import * as cache from '../services/cache.js'
+import * as lazyFetcher from '../services/lazy-fetcher.js'
 import scoresRoutes from './scores.js'
 
 async function buildApp() {
@@ -21,8 +21,8 @@ describe('GET /api/scores', () => {
     vi.resetAllMocks()
   })
 
-  it('returns cache.getAll() in the success envelope with cache headers', async () => {
-    cache.getAll.mockResolvedValue({ nfl: { games: [] }, nba: null })
+  it('returns lazyFetcher.getAll() in the success envelope with cache headers', async () => {
+    lazyFetcher.getAll.mockResolvedValue({ nfl: { games: [] }, nba: null })
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores' })
     expect(res.statusCode).toBe(200)
@@ -36,11 +36,11 @@ describe('GET /api/scores', () => {
   })
 
   it('serves the snapshot without re-reading the cache within its window', async () => {
-    cache.getAll.mockResolvedValue({ nfl: null })
+    lazyFetcher.getAll.mockResolvedValue({ nfl: null })
     const app = await buildApp()
     await app.inject({ method: 'GET', url: '/api/scores' })
     await app.inject({ method: 'GET', url: '/api/scores' })
-    expect(cache.getAll).toHaveBeenCalledTimes(1)
+    expect(lazyFetcher.getAll).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -56,7 +56,7 @@ describe('GET /api/scores/:league', () => {
       games: [{ id: '1' }],
       fetchedAt: '2026-08-21T00:00:00Z',
     }
-    cache.get.mockResolvedValue(cached)
+    lazyFetcher.getLeague.mockResolvedValue(cached)
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/nfl' })
     expect(res.statusCode).toBe(200)
@@ -64,7 +64,7 @@ describe('GET /api/scores/:league', () => {
   })
 
   it('returns an empty-but-successful shape before the first poll', async () => {
-    cache.get.mockResolvedValue(null)
+    lazyFetcher.getLeague.mockResolvedValue(null)
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/nfl' })
     expect(res.statusCode).toBe(200)
@@ -86,7 +86,7 @@ describe('GET /api/scores/:league', () => {
     expect(body.success).toBe(false)
     expect(body.data).toBeNull()
     expect(body.error).not.toContain(league)
-    expect(cache.get).not.toHaveBeenCalled()
+    expect(lazyFetcher.getLeague).not.toHaveBeenCalled()
   })
 
   it('traversal segments never reach the cache', async () => {
@@ -94,19 +94,19 @@ describe('GET /api/scores/:league', () => {
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/..' })
     expect(res.statusCode).toBe(404)
-    expect(cache.get).not.toHaveBeenCalled()
+    expect(lazyFetcher.getLeague).not.toHaveBeenCalled()
   })
 
   it.each(['nfl', 'ncaaf', 'nba', 'cbb', 'mlb'])('accepts valid key %s', async (league) => {
-    cache.get.mockResolvedValue(null)
+    lazyFetcher.getLeague.mockResolvedValue(null)
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: `/api/scores/${league}` })
     expect(res.statusCode).toBe(200)
-    expect(cache.get).toHaveBeenCalledWith(league)
+    expect(lazyFetcher.getLeague).toHaveBeenCalledWith(league)
   })
 
   it('an unexpected cache rejection surfaces as a 500 (documents current contract)', async () => {
-    cache.get.mockRejectedValue(new Error('unexpected'))
+    lazyFetcher.getLeague.mockRejectedValue(new Error('unexpected'))
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/nfl' })
     expect(res.statusCode).toBe(500)

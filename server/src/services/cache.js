@@ -1,9 +1,17 @@
 import Redis from 'ioredis'
-import { REDIS_URL, CACHE_KEY_PREFIX, CACHE_TTL_SECONDS } from '../config.js'
+import { REDIS_URL, CACHE_KEY_PREFIX, CACHE_TTL_SECONDS, LEAGUES } from '../config.js'
+
+// REDIS_URL=memory selects an in-process store: single-replica deployments
+// (the k8s sidecar) get TTL caching without running Redis. JSON round-trips
+// keep parity with the Redis backend — no shared mutable references.
+const memory = REDIS_URL === 'memory' ? new Map() : null
 
 let client = null
 
 export function connect() {
+  if (memory) {
+    return { connect: async () => {}, quit: async () => {} }
+  }
   if (client) return client
 
   client = new Redis(REDIS_URL, {
@@ -30,7 +38,18 @@ function cacheKey(league) {
   return `${CACHE_KEY_PREFIX}:${league}`
 }
 
+function memoryGet(league) {
+  const entry = memory.get(cacheKey(league))
+  if (!entry) return null
+  if (Date.now() >= entry.expiresAt) {
+    memory.delete(cacheKey(league))
+    return null
+  }
+  return JSON.parse(entry.json)
+}
+
 export async function get(league) {
+  if (memory) return memoryGet(league)
   if (!client) return null
   try {
     const data = await client.get(cacheKey(league))
@@ -42,6 +61,13 @@ export async function get(league) {
 }
 
 export async function set(league, data, ttl = CACHE_TTL_SECONDS) {
+  if (memory) {
+    memory.set(cacheKey(league), {
+      json: JSON.stringify(data),
+      expiresAt: Date.now() + ttl * 1000,
+    })
+    return
+  }
   if (!client) return
   try {
     await client.set(cacheKey(league), JSON.stringify(data), 'EX', ttl)
@@ -50,17 +76,21 @@ export async function set(league, data, ttl = CACHE_TTL_SECONDS) {
   }
 }
 
+const LEAGUE_KEYS = LEAGUES.map((l) => l.key)
+
 export async function getAll() {
+  if (memory) {
+    return Object.fromEntries(LEAGUE_KEYS.map((key) => [key, memoryGet(key)]))
+  }
   if (!client) return {}
   try {
     const pipeline = client.pipeline()
-    const keys = ['nfl', 'ncaaf', 'nba', 'cbb', 'mlb']
-    for (const key of keys) {
+    for (const key of LEAGUE_KEYS) {
       pipeline.get(cacheKey(key))
     }
     const results = await pipeline.exec()
     const out = {}
-    keys.forEach((key, i) => {
+    LEAGUE_KEYS.forEach((key, i) => {
       const [err, val] = results[i]
       out[key] = !err && val ? JSON.parse(val) : null
     })
@@ -72,6 +102,10 @@ export async function getAll() {
 }
 
 export async function disconnect() {
+  if (memory) {
+    memory.clear()
+    return
+  }
   if (client) {
     await client.quit()
     client = null

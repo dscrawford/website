@@ -1,8 +1,9 @@
 import { ESPN_BASE_URL } from '../config.js'
 
 // ESPN's site API is unofficial and undocumented: no keys, no SLA, and
-// endpoints or rate tolerance can change without notice. Keep polling polite
-// (server-side only, staggered, cached) — see poller.js/config.js.
+// endpoints or rate tolerance can change without notice. Requests stay
+// polite: fetched lazily on cache miss only, TTL-cached, deduped in-flight
+// — see lazy-fetcher.js/config.js.
 export async function fetchScoreboard(sport, league) {
   const url = `${ESPN_BASE_URL}/${sport}/${league}/scoreboard`
 
