@@ -107,7 +107,7 @@
           version = "0.0.0";
           src = pkgs.lib.cleanSource ./.;
 
-          npmDepsHash = "sha256-kpxW1I78fWCdKcdCjV7LtVILQh5RgYNopGW0maV1pHk=";
+          npmDepsHash = "sha256-8Bx3TBO2AUukkKgABzXGxrjqBYx+2xBkf6Z90mdvVzI=";
 
           nativeBuildInputs = [ pkgs.nodejs_22 ];
 
