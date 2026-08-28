@@ -1,5 +1,5 @@
 import * as lazyFetcher from '../services/lazy-fetcher.js'
-import { LEAGUES } from '../config.js'
+import { LEAGUES, GAME_ID_PATTERN } from '../config.js'
 
 const VALID_KEYS = new Set(LEAGUES.map((l) => l.key))
 
@@ -45,6 +45,35 @@ export default async function scoresRoutes(fastify) {
       }
     }
 
+    return { success: true, data, error: null }
+  })
+
+  fastify.get('/api/scores/:league/games/:gameId', async (request, reply) => {
+    const { league, gameId } = request.params
+    reply.header('X-Content-Type-Options', 'nosniff')
+
+    if (!VALID_KEYS.has(league)) {
+      reply.code(404)
+      return {
+        success: false,
+        data: null,
+        error: `Unknown league. Valid: ${[...VALID_KEYS].join(', ')}`,
+      }
+    }
+    if (!GAME_ID_PATTERN.test(gameId)) {
+      reply.code(400)
+      return { success: false, data: null, error: 'Invalid game id' }
+    }
+
+    reply.header('Cache-Control', 'public, max-age=30')
+    const data = await lazyFetcher.getBoxScore(league, gameId)
+    if (!data) {
+      return {
+        success: true,
+        data: { gameId, teams: [], fetchedAt: null },
+        error: null,
+      }
+    }
     return { success: true, data, error: null }
   })
 }

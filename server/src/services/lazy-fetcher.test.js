@@ -6,15 +6,20 @@ vi.mock('./cache.js', () => ({
 }))
 vi.mock('./espn-client.js', () => ({
   fetchScoreboard: vi.fn(),
+  fetchSummary: vi.fn(),
 }))
 vi.mock('../transformers/game-transformer.js', () => ({
   transformScoreboard: vi.fn(),
 }))
+vi.mock('../transformers/boxscore-transformer.js', () => ({
+  transformBoxScore: vi.fn(),
+}))
 
 import * as cache from './cache.js'
-import { fetchScoreboard } from './espn-client.js'
+import { fetchScoreboard, fetchSummary } from './espn-client.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
-import { getLeague, getAll } from './lazy-fetcher.js'
+import { transformBoxScore } from '../transformers/boxscore-transformer.js'
+import { getLeague, getAll, getBoxScore } from './lazy-fetcher.js'
 import { LEAGUES } from '../config.js'
 
 describe('lazy-fetcher', () => {
@@ -100,5 +105,65 @@ describe('lazy-fetcher', () => {
     const all = await getAll()
     expect(Object.keys(all).sort()).toEqual(LEAGUES.map((l) => l.key).sort())
     expect(fetchScoreboard).toHaveBeenCalledTimes(LEAGUES.length)
+  })
+})
+
+describe('lazy-fetcher — box scores', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('serves a cached box score without touching ESPN', async () => {
+    const cached = { gameId: '401', teams: [] }
+    cache.get.mockResolvedValue(cached)
+    const result = await getBoxScore('mlb', '401')
+    expect(result).toBe(cached)
+    expect(cache.get).toHaveBeenCalledWith('box:mlb:401')
+    expect(fetchSummary).not.toHaveBeenCalled()
+  })
+
+  it('fetches, transforms and caches on a miss under a box-scoped key', async () => {
+    cache.get.mockResolvedValue(null)
+    fetchSummary.mockResolvedValue({ boxscore: {} })
+    transformBoxScore.mockReturnValue({ teams: [{ name: 'Reds' }] })
+
+    const result = await getBoxScore('mlb', '401816711')
+
+    expect(fetchSummary).toHaveBeenCalledWith('baseball', 'mlb', '401816711')
+    expect(cache.set).toHaveBeenCalledWith('box:mlb:401816711', expect.objectContaining({
+      gameId: '401816711',
+      teams: [{ name: 'Reds' }],
+      fetchedAt: expect.any(String),
+    }))
+    expect(result.teams).toEqual([{ name: 'Reds' }])
+  })
+
+  it('dedups concurrent misses for the same game', async () => {
+    cache.get.mockResolvedValue(null)
+    let release
+    fetchSummary.mockReturnValue(new Promise((r) => { release = r }))
+    transformBoxScore.mockReturnValue({ teams: [] })
+    const [a, b] = [getBoxScore('nba', '77'), getBoxScore('nba', '77')]
+    release({ boxscore: {} })
+    await Promise.all([a, b])
+    expect(fetchSummary).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects invalid league or game id without fetching', async () => {
+    expect(await getBoxScore('cricket', '123')).toBeNull()
+    expect(await getBoxScore('mlb', 'DROP TABLE')).toBeNull()
+    expect(await getBoxScore('mlb', '1'.repeat(20))).toBeNull()
+    expect(await getBoxScore('mlb', '')).toBeNull()
+    expect(fetchSummary).not.toHaveBeenCalled()
+    expect(cache.get).not.toHaveBeenCalled()
+  })
+
+  it('returns null on upstream failure without caching', async () => {
+    cache.get.mockResolvedValue(null)
+    fetchSummary.mockResolvedValue(null)
+    expect(await getBoxScore('nfl', '55')).toBeNull()
+    fetchSummary.mockRejectedValue(new Error('boom'))
+    expect(await getBoxScore('nfl', '56')).toBeNull()
+    expect(cache.set).not.toHaveBeenCalled()
   })
 })

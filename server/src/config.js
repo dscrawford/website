@@ -6,6 +6,9 @@ export const LEAGUES = Object.freeze([
   { key: 'mlb', sport: 'baseball', league: 'mlb', label: 'MLB' },
 ])
 
+// ESPN event ids are short numeric strings; reject anything else at the edge
+export const GAME_ID_PATTERN = /^\d{1,12}$/
+
 export const ESPN_BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'
 
 export const POLL_INTERVAL_MS = 45_000

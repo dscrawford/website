@@ -4,6 +4,7 @@ import Fastify from 'fastify'
 vi.mock('../services/lazy-fetcher.js', () => ({
   getAll: vi.fn(),
   getLeague: vi.fn(),
+  getBoxScore: vi.fn(),
 }))
 
 import * as lazyFetcher from '../services/lazy-fetcher.js'
@@ -110,5 +111,51 @@ describe('GET /api/scores/:league', () => {
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/nfl' })
     expect(res.statusCode).toBe(500)
+  })
+})
+
+describe('GET /api/scores/:league/games/:gameId', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('returns the box score envelope with cache headers', async () => {
+    const box = { gameId: '401', teams: [{ name: 'Reds' }], fetchedAt: 'x' }
+    lazyFetcher.getBoxScore.mockResolvedValue(box)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/mlb/games/401' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toContain('max-age')
+    expect(res.headers['x-content-type-options']).toBe('nosniff')
+    expect(res.json()).toEqual({ success: true, data: box, error: null })
+    expect(lazyFetcher.getBoxScore).toHaveBeenCalledWith('mlb', '401')
+  })
+
+  it('404s unknown leagues without fetching', async () => {
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/cricket/games/401' })
+    expect(res.statusCode).toBe(404)
+    expect(lazyFetcher.getBoxScore).not.toHaveBeenCalled()
+  })
+
+  it('400s malformed game ids without fetching', async () => {
+    const app = await buildApp()
+    for (const bad of ['abc', '12x', '1'.repeat(20)]) {
+      const res = await app.inject({ method: 'GET', url: `/api/scores/mlb/games/${bad}` })
+      expect(res.statusCode).toBe(400)
+    }
+    expect(lazyFetcher.getBoxScore).not.toHaveBeenCalled()
+  })
+
+  it('returns an empty box score when the fetch yields nothing', async () => {
+    lazyFetcher.getBoxScore.mockResolvedValue(null)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/nba/games/77' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      success: true,
+      data: { gameId: '77', teams: [], fetchedAt: null },
+      error: null,
+    })
   })
 })

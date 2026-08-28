@@ -1,0 +1,97 @@
+.box-score-toggle {
+  background: none;
+  border: none;
+  color: #8888aa;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+}
+
+.box-score-toggle:hover {
+  color: #e0e0e0;
+}
+
+.box-score {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.box-team-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #e0e0e0;
+  margin: 0 0 4px;
+}
+
+.box-group {
+  margin-bottom: 8px;
+  overflow-x: auto;
+}
+
+.box-group-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #8888aa;
+  margin: 4px 0;
+}
+
+.box-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  color: #c0c0d0;
+}
+
+.box-table th {
+  text-align: right;
+  color: #8888aa;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.box-table td {
+  text-align: right;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.box-table .box-player-col {
+  text-align: left;
+}
+
+.box-pos {
+  color: #666688;
+  font-size: 9px;
+}
+
+.box-totals td {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+.box-status {
+  font-size: 11px;
+  color: #8888aa;
+  margin: 6px 0 0;
+}
+
+.box-retry {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #c0c0d0;
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
