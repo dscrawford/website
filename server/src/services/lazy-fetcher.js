@@ -11,7 +11,7 @@ const LEAGUE_BY_KEY = new Map(LEAGUES.map((l) => [l.key, l]))
 const inflight = new Map()
 
 async function fetchAndCache(cfg) {
-  const raw = await fetchScoreboard(cfg.sport, cfg.league)
+  const raw = await fetchScoreboard(cfg.sport, cfg.league, cfg.params ?? '')
   if (!raw) return null
   const data = {
     league: cfg.key,

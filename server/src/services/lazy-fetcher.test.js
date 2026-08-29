@@ -42,7 +42,7 @@ describe('lazy-fetcher', () => {
 
     const result = await getLeague('nba')
 
-    expect(fetchScoreboard).toHaveBeenCalledWith('basketball', 'nba')
+    expect(fetchScoreboard).toHaveBeenCalledWith('basketball', 'nba', '')
     expect(cache.set).toHaveBeenCalledWith('nba', expect.objectContaining({
       league: 'nba',
       label: 'NBA',
@@ -165,5 +165,22 @@ describe('lazy-fetcher — box scores', () => {
     fetchSummary.mockRejectedValue(new Error('boom'))
     expect(await getBoxScore('nfl', '56')).toBeNull()
     expect(cache.set).not.toHaveBeenCalled()
+  })
+})
+
+describe('lazy-fetcher — college scoreboard params', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it.each([
+    ['ncaaf', 'football', 'college-football', 'groups=80&limit=300'],
+    ['cbb', 'basketball', 'mens-college-basketball', 'groups=50&limit=300'],
+  ])('%s requests the full division, not just featured games', async (key, sport, league, params) => {
+    cache.get.mockResolvedValue(null)
+    fetchScoreboard.mockResolvedValue({ events: [] })
+    transformScoreboard.mockReturnValue([])
+    await getLeague(key)
+    expect(fetchScoreboard).toHaveBeenCalledWith(sport, league, params)
   })
 })

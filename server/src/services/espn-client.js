@@ -4,8 +4,9 @@ import { ESPN_BASE_URL } from '../config.js'
 // endpoints or rate tolerance can change without notice. Requests stay
 // polite: fetched lazily on cache miss only, TTL-cached, deduped in-flight
 // — see lazy-fetcher.js/config.js.
-export async function fetchScoreboard(sport, league) {
-  return fetchJson(`${ESPN_BASE_URL}/${sport}/${league}/scoreboard`, league)
+export async function fetchScoreboard(sport, league, params = '') {
+  const query = params ? `?${params}` : ''
+  return fetchJson(`${ESPN_BASE_URL}/${sport}/${league}/scoreboard${query}`, league)
 }
 
 // Game summary (box score, leaders, injuries); eventId must be pre-validated

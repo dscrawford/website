@@ -1,9 +1,11 @@
+// College scoreboards default to ~25 featured games; groups=80 (FBS) and
+// groups=50 (all D1) with an explicit limit return the full slate
 export const LEAGUES = Object.freeze([
-  { key: 'nfl', sport: 'football', league: 'nfl', label: 'NFL' },
-  { key: 'ncaaf', sport: 'football', league: 'college-football', label: 'NCAAF' },
-  { key: 'nba', sport: 'basketball', league: 'nba', label: 'NBA' },
-  { key: 'cbb', sport: 'basketball', league: 'mens-college-basketball', label: 'College Basketball' },
-  { key: 'mlb', sport: 'baseball', league: 'mlb', label: 'MLB' },
+  { key: 'nfl', sport: 'football', league: 'nfl', label: 'NFL', params: '' },
+  { key: 'ncaaf', sport: 'football', league: 'college-football', label: 'NCAAF', params: 'groups=80&limit=300' },
+  { key: 'nba', sport: 'basketball', league: 'nba', label: 'NBA', params: '' },
+  { key: 'cbb', sport: 'basketball', league: 'mens-college-basketball', label: 'College Basketball', params: 'groups=50&limit=300' },
+  { key: 'mlb', sport: 'baseball', league: 'mlb', label: 'MLB', params: '' },
 ])
 
 // ESPN event ids are short numeric strings; reject anything else at the edge
