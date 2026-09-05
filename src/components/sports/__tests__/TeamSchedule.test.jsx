@@ -18,7 +18,7 @@ const game = (id, date, extra = {}) => ({
 
 const SCHEDULE = {
   teamId: '5',
-  team: { abbreviation: 'CLE', name: 'Cleveland Guardians' },
+  team: { abbreviation: 'CLE', name: 'Cleveland Guardians', record: '71-70' },
   season: '2026',
   fetchedAt: 'x',
   games: [
@@ -60,6 +60,19 @@ describe('TeamSchedule', () => {
     expect(within(rows[1]).getByText('@ SEA')).toBeTruthy()
     expect(within(rows[1]).getByText('L').className).toContain('sched-result--l')
     expect(within(rows[2]).getByText('T').className).toContain('sched-result--t')
+  })
+
+  it('shows the season record next to the team, preferring the schedule and falling back to the scoreboard', () => {
+    const { rerender, container } = render(<TeamSchedule schedule={SCHEDULE} loading={false} error={false} onRetry={noop} currentGameId="5" record="70-71" />)
+    expect(screen.getByText('71-70').className).toBe('sched-record')
+    expect(screen.queryByText('70-71')).toBeNull()
+
+    const noRecord = { ...SCHEDULE, team: { ...SCHEDULE.team, record: null } }
+    rerender(<TeamSchedule schedule={noRecord} loading={false} error={false} onRetry={noop} currentGameId="5" record="10-6-1" />)
+    expect(screen.getByText('10-6-1')).toBeTruthy()
+
+    rerender(<TeamSchedule schedule={noRecord} loading={false} error={false} onRetry={noop} currentGameId="5" record={null} />)
+    expect(container.querySelector('.sched-record')).toBeNull()
   })
 
   it('shows status instead of a score for postponed and upcoming games, and the live score for in-progress ones', () => {

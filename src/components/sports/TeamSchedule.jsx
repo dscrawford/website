@@ -28,7 +28,7 @@ const ScheduleRow = memo(function ScheduleRow({ game, current }) {
   )
 })
 
-function TeamSchedule({ schedule, loading, error, onRetry, currentGameId }) {
+function TeamSchedule({ schedule, loading, error, onRetry, currentGameId, record }) {
   const listRef = useRef(null)
   const games = schedule?.games ?? NO_GAMES
   const focused = focusIndex(games, currentGameId)
@@ -43,11 +43,16 @@ function TeamSchedule({ schedule, loading, error, onRetry, currentGameId }) {
   }, [games, focused])
 
   const abbreviation = schedule?.team?.abbreviation ?? ''
+  // Schedules for leagues out of season carry no record; the scoreboard's does
+  const shownRecord = schedule?.team?.record ?? record ?? null
 
   return (
     <section className="sched" aria-label={`${abbreviation} schedule`.trim()}>
       <header className="sched-head">
-        <span className="sched-team">{abbreviation}</span>
+        <span className="sched-team">
+          {abbreviation}
+          {shownRecord && <span className="sched-record">{shownRecord}</span>}
+        </span>
         {schedule?.season && <span className="sched-season">{schedule.season}</span>}
       </header>
       {loading && <p className="sched-status">Loading schedule...</p>}

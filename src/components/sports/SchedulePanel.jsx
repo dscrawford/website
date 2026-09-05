@@ -21,6 +21,7 @@ export default function SchedulePanel({ leagueKey, game }) {
           error={away.error}
           onRetry={away.retry}
           currentGameId={game.id}
+          record={game.awayTeam.record ?? null}
         />
       )}
       {homeId && (
@@ -30,6 +31,7 @@ export default function SchedulePanel({ leagueKey, game }) {
           error={home.error}
           onRetry={home.retry}
           currentGameId={game.id}
+          record={game.homeTeam.record ?? null}
         />
       )}
     </div>

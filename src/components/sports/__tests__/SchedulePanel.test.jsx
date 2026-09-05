@@ -5,8 +5,8 @@ import SchedulePanel from '../SchedulePanel.jsx'
 
 const GAME = {
   id: '401',
-  homeTeam: { id: '5', name: 'Guardians', abbreviation: 'CLE', score: 3 },
-  awayTeam: { id: '6', name: 'Tigers', abbreviation: 'DET', score: 2 },
+  homeTeam: { id: '5', name: 'Guardians', abbreviation: 'CLE', score: 3, record: '71-70' },
+  awayTeam: { id: '6', name: 'Tigers', abbreviation: 'DET', score: 2, record: '80-61' },
 }
 
 function schedule(teamId, abbreviation) {
@@ -55,7 +55,9 @@ describe('SchedulePanel', () => {
     const panels = screen.getAllByRole('region')
     expect(panels).toHaveLength(2)
     expect(panels[0].textContent).toContain('DET')
+    expect(panels[0].textContent).toContain('80-61')
     expect(panels[1].textContent).toContain('CLE')
+    expect(panels[1].textContent).toContain('71-70')
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/6/schedule', expect.anything())
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/5/schedule', expect.anything())
   })

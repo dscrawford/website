@@ -88,6 +88,8 @@ export function transformSchedule(raw, teamId) {
     team: Object.freeze({
       abbreviation: str(team.abbreviation, 8) || '???',
       name: str(team.displayName) || str(team.name) || 'Unknown',
+      // Already formatted per sport by ESPN (W-L, or W-L-T when ties exist)
+      record: str(team.recordSummary, 24) || null,
     }),
     season: str(raw?.season?.displayName, 16) || str(raw?.season?.year, 16),
     games: Object.freeze(games),

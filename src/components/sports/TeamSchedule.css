@@ -20,6 +20,14 @@
   color: #e0e0e0;
 }
 
+.sched-record {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #8888aa;
+}
+
 .sched-season {
   font-size: 10px;
   letter-spacing: 1px;
