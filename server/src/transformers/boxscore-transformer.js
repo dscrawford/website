@@ -5,15 +5,18 @@ const MAX_GROUPS = 6
 const MAX_PLAYERS = 60
 const MAX_COLUMNS = 16
 
+// Control, zero-width and bidi-override characters could spoof UI text
+const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]/g
+
 function str(value, max = 64) {
-  if (typeof value === 'string') return value.slice(0, max)
+  if (typeof value === 'string') return value.replace(CONTROL_CHARS, ' ').trim().slice(0, max)
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return null
 }
 
-function statCells(values) {
+function statCells(values, maxLength = 16) {
   if (!Array.isArray(values)) return []
-  return values.slice(0, MAX_COLUMNS).map((v) => str(v, 16) ?? '')
+  return values.slice(0, MAX_COLUMNS).map((v) => str(v, maxLength) ?? '')
 }
 
 function transformPlayer(entry) {
@@ -35,9 +38,13 @@ function transformPlayer(entry) {
 function transformGroup(group) {
   if (!group || typeof group !== 'object') return null
   const athletes = Array.isArray(group.athletes) ? group.athletes : []
+  const labels = statCells(group.labels)
   return Object.freeze({
     name: str(group.name, 32) || str(group.type, 32) || 'stats',
-    labels: Object.freeze(statCells(group.labels)),
+    labels: Object.freeze(labels),
+    // ESPN's own column names, index-aligned with labels; the client's
+    // glossary falls back to these
+    descriptions: Object.freeze(statCells(group.descriptions, 64).slice(0, labels.length)),
     totals: Object.freeze(statCells(group.totals)),
     players: Object.freeze(
       athletes.slice(0, MAX_PLAYERS).map(transformPlayer).filter(Boolean)

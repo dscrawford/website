@@ -1,7 +1,9 @@
 import { memo } from 'react'
+import StatHeader from './StatHeader.jsx'
+import { describeStat } from './statGlossary.js'
 import './BoxScore.css'
 
-function StatGroup({ group }) {
+function StatGroup({ group, sport }) {
   return (
     <div className="box-group">
       <h4 className="box-group-name">{group.name}</h4>
@@ -10,7 +12,11 @@ function StatGroup({ group }) {
           <tr>
             <th className="box-player-col">PLAYER</th>
             {group.labels.map((label, i) => (
-              <th key={i}>{label}</th>
+              <StatHeader
+                key={i}
+                label={label}
+                info={describeStat({ sport, group: group.name, label, fallbackName: group.descriptions?.[i] })}
+              />
             ))}
           </tr>
         </thead>
@@ -40,7 +46,7 @@ function StatGroup({ group }) {
   )
 }
 
-function BoxScore({ boxScore, loading, error, onRetry }) {
+function BoxScore({ boxScore, sport, loading, error, onRetry }) {
   if (loading) {
     return <p className="box-status">Loading box score...</p>
   }
@@ -63,7 +69,7 @@ function BoxScore({ boxScore, loading, error, onRetry }) {
         <div key={i} className="box-team">
           <h3 className="box-team-name">{team.name}</h3>
           {team.groups.map((group, j) => (
-            <StatGroup key={j} group={group} />
+            <StatGroup key={j} group={group} sport={sport} />
           ))}
         </div>
       ))}

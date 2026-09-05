@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react'
 import GameBoxScorePage from '../GameBoxScorePage.jsx'
 
 const GAME = {
@@ -44,7 +44,7 @@ function mockEndpoints({ leagues, box } = {}) {
         ok: true,
         json: async () => ({
           success: true,
-          data: { leagues: leagues ?? { mlb: { league: 'mlb', label: 'MLB', games: [GAME] } } },
+          data: { leagues: leagues ?? { mlb: { league: 'mlb', sport: 'baseball', label: 'MLB', games: [GAME] } } },
           error: null,
         }),
       })
@@ -86,5 +86,23 @@ describe('GameBoxScorePage', () => {
     render(<GameBoxScorePage navigate={navigate} gameId="401" />)
     const back = await screen.findByRole('link', { name: /scoreboard/i })
     expect(back.getAttribute('href')).toBe('/sports')
+  })
+  it('passes the league sport through so stat headers explain themselves', async () => {
+    mockEndpoints()
+    render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
+    const header = await screen.findByRole('columnheader', { name: 'AB' })
+    fireEvent.mouseEnter(header)
+    expect(screen.getByRole('tooltip').textContent).toContain('At Bats')
+  })
+  it('degrades to no tooltip when cached league data predates the sport field', async () => {
+    const box = {
+      gameId: '401',
+      fetchedAt: 'x',
+      teams: [{ name: 'T', abbreviation: 'T', groups: [{ name: 'stats', labels: ['STL'], totals: ['2'], players: [{ name: 'P', shortName: 'P', position: 'G', stats: ['2'] }] }] }],
+    }
+    mockEndpoints({ leagues: { mlb: { league: 'mlb', label: 'MLB', games: [GAME] } }, box })
+    render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
+    fireEvent.mouseEnter(await screen.findByRole('columnheader', { name: 'STL' }))
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
 })

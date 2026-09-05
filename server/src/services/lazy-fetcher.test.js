@@ -45,6 +45,7 @@ describe('lazy-fetcher', () => {
     expect(fetchScoreboard).toHaveBeenCalledWith('basketball', 'nba', '')
     expect(cache.set).toHaveBeenCalledWith('nba', expect.objectContaining({
       league: 'nba',
+      sport: 'basketball',
       label: 'NBA',
       games: [{ id: 'g1' }],
       fetchedAt: expect.any(String),

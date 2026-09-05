@@ -9,3 +9,7 @@ public/data/
 data/
 dump.rdb
 .claude-flow/
+
+# Playwright artifacts
+/test-results/
+/playwright-report/

@@ -1,0 +1,50 @@
+.stat-th {
+  cursor: help;
+}
+
+.stat-th:focus {
+  outline: none;
+}
+
+.stat-label {
+  border-bottom: 1px dotted rgba(136, 136, 170, 0.6);
+}
+
+.stat-th:hover .stat-label,
+.stat-th:focus-visible .stat-label {
+  color: #e0e0e0;
+  border-bottom-color: #e0e0e0;
+}
+
+.stat-tip {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: rgba(20, 20, 40, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.stat-tip--above {
+  transform: translateY(-100%);
+}
+
+.stat-tip-name {
+  display: block;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.stat-tip-desc {
+  display: block;
+  margin-top: 2px;
+  color: #b0b0c8;
+}

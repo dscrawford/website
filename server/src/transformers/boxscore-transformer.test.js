@@ -133,3 +133,53 @@ describe('transformBoxScore', () => {
     expect(stats).toEqual(['5', '', '', 'ok'])
   })
 })
+
+describe('transformBoxScore descriptions', () => {
+  function summaryWith(group) {
+    return { boxscore: { players: [{ team: { displayName: 'X' }, statistics: [group] }] } }
+  }
+
+  it('passes ESPN column descriptions through alongside labels', () => {
+    const out = transformBoxScore(
+      summaryWith({ name: 'passing', labels: ['C/ATT', 'INT'], descriptions: ['Completions/Attempts', 'Interceptions'] })
+    )
+    const group = out.teams[0].groups[0]
+    expect(group.descriptions).toEqual(['Completions/Attempts', 'Interceptions'])
+    expect(Object.isFrozen(group.descriptions)).toBe(true)
+  })
+
+  it('keeps descriptions index-aligned with labels', () => {
+    const out = transformBoxScore(
+      summaryWith({ name: 'passing', labels: ['A', 'B'], descriptions: ['a', 'b', 'c', 'd'] })
+    )
+    expect(out.teams[0].groups[0].descriptions).toEqual(['a', 'b'])
+  })
+
+  it('strips control and bidi-override characters from upstream text', () => {
+    const out = transformBoxScore(
+      summaryWith({
+        name: 'pass\u0000ing',
+        labels: ['IN\u200BT'],
+        descriptions: ['\u202ETcatnoc\u202C support\n at evil.example  '],
+      })
+    )
+    const group = out.teams[0].groups[0]
+    expect(group.name).toBe('pass ing')
+    expect(group.labels).toEqual(['IN T'])
+    expect(group.descriptions).toEqual(['Tcatnoc  support  at evil.example'])
+  })
+
+  it('defaults to an empty list and caps hostile descriptions', () => {
+    expect(transformBoxScore(summaryWith({ name: 'passing', labels: ['A'] })).teams[0].groups[0].descriptions).toEqual([])
+    const out = transformBoxScore(
+      summaryWith({
+        name: 'passing',
+        labels: ['A'],
+        descriptions: Array.from({ length: 40 }, () => 'y'.repeat(500)).concat([{ evil: 1 }, 7]),
+      })
+    )
+    const descriptions = out.teams[0].groups[0].descriptions
+    expect(descriptions.length).toBeLessThanOrEqual(16)
+    expect(descriptions.every((d) => typeof d === 'string' && d.length <= 64)).toBe(true)
+  })
+})

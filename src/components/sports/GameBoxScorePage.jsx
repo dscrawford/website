@@ -12,14 +12,14 @@ function findGame(leagues, gameId) {
   if (!leagues) return {}
   for (const [key, data] of Object.entries(leagues)) {
     const game = data?.games?.find((g) => g.id === gameId)
-    if (game) return { leagueKey: key, label: data.label, game }
+    if (game) return { leagueKey: key, label: data.label, sport: data.sport, game }
   }
   return {}
 }
 
 export default function GameBoxScorePage({ navigate, gameId }) {
   const { leagues, loading: scoresLoading } = useSportsData()
-  const { leagueKey, label, game } = findGame(leagues, gameId)
+  const { leagueKey, label, sport, game } = findGame(leagues, gameId)
   const { boxScore, loading, error, retry } = useBoxScore(leagueKey, gameId)
 
   const notFound = !scoresLoading && leagues && !game
@@ -54,7 +54,7 @@ export default function GameBoxScorePage({ navigate, gameId }) {
               </div>
               <StatusBadge status={game.status} startTime={game.startTime} />
             </div>
-            <BoxScore boxScore={boxScore} loading={loading} error={error} onRetry={retry} />
+            <BoxScore boxScore={boxScore} sport={sport} loading={loading} error={error} onRetry={retry} />
           </>
         )}
       </div>

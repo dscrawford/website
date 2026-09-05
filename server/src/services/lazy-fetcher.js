@@ -15,6 +15,7 @@ async function fetchAndCache(cfg) {
   if (!raw) return null
   const data = {
     league: cfg.key,
+    sport: cfg.sport,
     label: cfg.label,
     games: transformScoreboard(raw, cfg.key),
     fetchedAt: new Date().toISOString(),
