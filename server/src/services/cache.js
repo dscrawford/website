@@ -5,6 +5,9 @@ import { REDIS_URL, CACHE_KEY_PREFIX, CACHE_TTL_SECONDS, LEAGUES } from '../conf
 // (the k8s sidecar) get TTL caching without running Redis. JSON round-trips
 // keep parity with the Redis backend — no shared mutable references.
 const memory = REDIS_URL === 'memory' ? new Map() : null
+// Redis has maxmemory; the in-process map needs its own ceiling since
+// per-team keys are written once and may never be read again
+const MAX_MEMORY_ENTRIES = 500
 
 let client = null
 
@@ -60,8 +63,20 @@ export async function get(league) {
   }
 }
 
+// Drop expired entries, then oldest insertions, so the map stays bounded
+function memorySweep() {
+  const now = Date.now()
+  for (const [key, entry] of memory) {
+    if (now >= entry.expiresAt) memory.delete(key)
+  }
+  while (memory.size >= MAX_MEMORY_ENTRIES) {
+    memory.delete(memory.keys().next().value)
+  }
+}
+
 export async function set(league, data, ttl = CACHE_TTL_SECONDS) {
   if (memory) {
+    memorySweep()
     memory.set(cacheKey(league), {
       json: JSON.stringify(data),
       expiresAt: Date.now() + ttl * 1000,

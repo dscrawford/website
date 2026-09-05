@@ -18,6 +18,7 @@ function makeEvent(overrides = {}) {
             homeAway: 'home',
             score: '14',
             team: {
+              id: '10',
               displayName: 'Home Team',
               abbreviation: 'HOM',
               logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/hom.png',
@@ -28,6 +29,7 @@ function makeEvent(overrides = {}) {
             homeAway: 'away',
             score: '10',
             team: {
+              id: '20',
               displayName: 'Away Team',
               abbreviation: 'AWY',
               logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/awy.png',
@@ -47,6 +49,7 @@ describe('transformEvent', () => {
     expect(result).toEqual({
       id: 'evt-1',
       homeTeam: {
+        id: '10',
         name: 'Home Team',
         abbreviation: 'HOM',
         logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/hom.png',
@@ -55,6 +58,7 @@ describe('transformEvent', () => {
         homeAway: 'home',
       },
       awayTeam: {
+        id: '20',
         name: 'Away Team',
         abbreviation: 'AWY',
         logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/awy.png',
@@ -72,6 +76,27 @@ describe('transformEvent', () => {
       broadcasts: ['ESPN'],
       startTime: '2026-08-21T18:00:00Z',
     })
+  })
+
+  it('only keeps numeric team ids so they can be used in upstream URLs', () => {
+    const ev = makeEvent()
+    ev.competitions[0].competitors[0].team.id = '../etc'
+    ev.competitions[0].competitors[1].team.id = 42
+    const result = transformEvent(ev)
+    expect(result.homeTeam.id).toBeNull()
+    expect(result.awayTeam.id).toBe('42')
+    const bare = makeEvent()
+    delete bare.competitions[0].competitors[0].team.id
+    expect(transformEvent(bare).homeTeam.id).toBeNull()
+  })
+
+  it('strips control and bidi-override characters from team names', () => {
+    const ev = makeEvent()
+    ev.competitions[0].competitors[0].team.displayName = '\u202EmaeT emoH\u202C  '
+    ev.competitions[0].competitors[0].team.abbreviation = 'H\u200BOM'
+    const result = transformEvent(ev)
+    expect(result.homeTeam.name).toBe('maeT emoH')
+    expect(result.homeTeam.abbreviation).toBe('H OM')
   })
 
   it('freezes the returned object and nested status', () => {

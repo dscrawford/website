@@ -7,6 +7,10 @@ vi.mock('./cache.js', () => ({
 vi.mock('./espn-client.js', () => ({
   fetchScoreboard: vi.fn(),
   fetchSummary: vi.fn(),
+  fetchTeamSchedule: vi.fn(),
+}))
+vi.mock('../transformers/schedule-transformer.js', () => ({
+  transformSchedule: vi.fn(),
 }))
 vi.mock('../transformers/game-transformer.js', () => ({
   transformScoreboard: vi.fn(),
@@ -16,10 +20,11 @@ vi.mock('../transformers/boxscore-transformer.js', () => ({
 }))
 
 import * as cache from './cache.js'
-import { fetchScoreboard, fetchSummary } from './espn-client.js'
+import { fetchScoreboard, fetchSummary, fetchTeamSchedule } from './espn-client.js'
+import { transformSchedule } from '../transformers/schedule-transformer.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
-import { getLeague, getAll, getBoxScore } from './lazy-fetcher.js'
+import { getLeague, getAll, getBoxScore, getTeamSchedule } from './lazy-fetcher.js'
 import { LEAGUES } from '../config.js'
 
 describe('lazy-fetcher', () => {
@@ -183,5 +188,74 @@ describe('lazy-fetcher — college scoreboard params', () => {
     transformScoreboard.mockReturnValue([])
     await getLeague(key)
     expect(fetchScoreboard).toHaveBeenCalledWith(sport, league, params)
+  })
+})
+
+describe('getTeamSchedule', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('serves a cached schedule without touching ESPN', async () => {
+    const cached = { teamId: '5', games: [], fetchedAt: 'x' }
+    cache.get.mockResolvedValue(cached)
+    expect(await getTeamSchedule('mlb', '5')).toBe(cached)
+    expect(cache.get).toHaveBeenCalledWith('sched:mlb:5')
+    expect(fetchTeamSchedule).not.toHaveBeenCalled()
+  })
+
+  it('fetches, transforms and caches on a miss with a longer TTL than scores', async () => {
+    cache.get.mockResolvedValue(null)
+    fetchTeamSchedule.mockResolvedValue({ events: [] })
+    transformSchedule.mockReturnValue({ teamId: '5', games: [{ id: 'g' }] })
+    const result = await getTeamSchedule('mlb', '5')
+    expect(fetchTeamSchedule).toHaveBeenCalledWith('baseball', 'mlb', '5')
+    expect(transformSchedule).toHaveBeenCalledWith({ events: [] }, '5')
+    expect(cache.set).toHaveBeenCalledWith(
+      'sched:mlb:5',
+      expect.objectContaining({ teamId: '5', games: [{ id: 'g' }], fetchedAt: expect.any(String) }),
+      expect.any(Number)
+    )
+    expect(cache.set.mock.calls[0][2]).toBeGreaterThan(60)
+    expect(result.games).toEqual([{ id: 'g' }])
+  })
+
+  it('dedups concurrent misses for the same team', async () => {
+    cache.get.mockResolvedValue(null)
+    let release
+    fetchTeamSchedule.mockReturnValue(new Promise((r) => { release = r }))
+    transformSchedule.mockReturnValue({ teamId: '13', games: [] })
+    const [a, b] = [getTeamSchedule('nba', '13'), getTeamSchedule('nba', '13')]
+    release({ events: [] })
+    await Promise.all([a, b])
+    expect(fetchTeamSchedule).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects invalid league or team id without fetching', async () => {
+    expect(await getTeamSchedule('cricket', '5')).toBeNull()
+    expect(await getTeamSchedule('mlb', '../x')).toBeNull()
+    expect(await getTeamSchedule('mlb', '007')).toBeNull()
+    expect(await getTeamSchedule('mlb', '1'.repeat(20))).toBeNull()
+    expect(await getTeamSchedule('mlb', '')).toBeNull()
+    expect(await getTeamSchedule('mlb', 5)).toBeNull()
+    expect(fetchTeamSchedule).not.toHaveBeenCalled()
+    expect(cache.get).not.toHaveBeenCalled()
+  })
+
+  it('returns null on upstream failure without caching', async () => {
+    cache.get.mockResolvedValue(null)
+    fetchTeamSchedule.mockResolvedValue(null)
+    expect(await getTeamSchedule('mlb', '5')).toBeNull()
+    expect(cache.set).not.toHaveBeenCalled()
+    fetchTeamSchedule.mockRejectedValue(new Error('boom'))
+    expect(await getTeamSchedule('mlb', '5')).toBeNull()
+  })
+
+  it('returns null rather than partial data when the cache write fails after a good fetch', async () => {
+    cache.get.mockResolvedValue(null)
+    fetchTeamSchedule.mockResolvedValue({ events: [] })
+    transformSchedule.mockReturnValue({ teamId: '5', games: [] })
+    cache.set.mockRejectedValue(new Error('redis down'))
+    expect(await getTeamSchedule('mlb', '5')).toBeNull()
   })
 })

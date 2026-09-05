@@ -1,7 +1,8 @@
-import { LEAGUES, GAME_ID_PATTERN } from '../config.js'
-import { fetchScoreboard, fetchSummary } from './espn-client.js'
+import { LEAGUES, GAME_ID_PATTERN, TEAM_ID_PATTERN, SCHEDULE_CACHE_TTL_SECONDS } from '../config.js'
+import { fetchScoreboard, fetchSummary, fetchTeamSchedule } from './espn-client.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
+import { transformSchedule } from '../transformers/schedule-transformer.js'
 import * as cache from './cache.js'
 
 const LEAGUE_BY_KEY = new Map(LEAGUES.map((l) => [l.key, l]))
@@ -75,6 +76,37 @@ export async function getBoxScore(leagueKey, gameId) {
   })()
     .catch((err) => {
       console.error(`[lazy-fetcher] ${cfg.label} box score ${gameId} failed:`, err.message)
+      return null
+    })
+    .finally(() => inflight.delete(cacheKey))
+  inflight.set(cacheKey, pending)
+  return pending
+}
+
+export async function getTeamSchedule(leagueKey, teamId) {
+  const cfg = LEAGUE_BY_KEY.get(leagueKey)
+  if (!cfg || typeof teamId !== 'string' || !TEAM_ID_PATTERN.test(teamId)) {
+    return null
+  }
+
+  const cacheKey = `sched:${leagueKey}:${teamId}`
+  const cached = await cache.get(cacheKey)
+  if (cached) return cached
+
+  if (inflight.has(cacheKey)) return inflight.get(cacheKey)
+
+  const pending = (async () => {
+    const raw = await fetchTeamSchedule(cfg.sport, cfg.league, teamId)
+    if (!raw) return null
+    const data = {
+      ...transformSchedule(raw, teamId),
+      fetchedAt: new Date().toISOString(),
+    }
+    await cache.set(cacheKey, data, SCHEDULE_CACHE_TTL_SECONDS)
+    return data
+  })()
+    .catch((err) => {
+      console.error(`[lazy-fetcher] ${cfg.label} schedule ${teamId} failed:`, err.message)
       return null
     })
     .finally(() => inflight.delete(cacheKey))

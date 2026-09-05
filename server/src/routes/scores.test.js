@@ -5,6 +5,7 @@ vi.mock('../services/lazy-fetcher.js', () => ({
   getAll: vi.fn(),
   getLeague: vi.fn(),
   getBoxScore: vi.fn(),
+  getTeamSchedule: vi.fn(),
 }))
 
 import * as lazyFetcher from '../services/lazy-fetcher.js'
@@ -164,9 +165,58 @@ describe('GET /api/scores/:league/games/:gameId', () => {
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/nba/games/77' })
     expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toBe('no-store')
     expect(res.json()).toEqual({
       success: true,
       data: { gameId: '77', teams: [], fetchedAt: null },
+      error: null,
+    })
+  })
+})
+
+describe('GET /api/scores/:league/teams/:teamId/schedule', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('returns the schedule envelope with cache headers', async () => {
+    const schedule = { teamId: '5', team: { abbreviation: 'CLE' }, games: [], fetchedAt: 'x' }
+    lazyFetcher.getTeamSchedule.mockResolvedValue(schedule)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/mlb/teams/5/schedule' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toContain('max-age')
+    expect(res.headers['x-content-type-options']).toBe('nosniff')
+    expect(res.json()).toEqual({ success: true, data: schedule, error: null })
+    expect(lazyFetcher.getTeamSchedule).toHaveBeenCalledWith('mlb', '5')
+  })
+
+  it('404s unknown leagues without fetching', async () => {
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/cricket/teams/5/schedule' })
+    expect(res.statusCode).toBe(404)
+    expect(lazyFetcher.getTeamSchedule).not.toHaveBeenCalled()
+  })
+
+  it('400s malformed team ids without echoing them', async () => {
+    const app = await buildApp()
+    for (const bad of ['abc', '12x', '007', '1'.repeat(20), 'h1a2b3c4d']) {
+      const res = await app.inject({ method: 'GET', url: `/api/scores/mlb/teams/${bad}/schedule` })
+      expect(res.statusCode).toBe(400)
+      expect(res.body).not.toContain(bad)
+    }
+    expect(lazyFetcher.getTeamSchedule).not.toHaveBeenCalled()
+  })
+
+  it('returns an empty schedule when the fetch yields nothing', async () => {
+    lazyFetcher.getTeamSchedule.mockResolvedValue(null)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/nba/teams/13/schedule' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.json()).toEqual({
+      success: true,
+      data: { teamId: '13', team: null, season: null, games: [], fetchedAt: null },
       error: null,
     })
   })

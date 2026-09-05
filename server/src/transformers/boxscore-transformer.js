@@ -1,18 +1,11 @@
 // ESPN summary payloads are untrusted upstream: this is the trust boundary
 // before box scores reach the cache and every visitor's browser
+import { str } from './sanitize.js'
+
 const MAX_TEAMS = 2
 const MAX_GROUPS = 6
 const MAX_PLAYERS = 60
 const MAX_COLUMNS = 16
-
-// Control, zero-width and bidi-override characters could spoof UI text
-const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]/g
-
-function str(value, max = 64) {
-  if (typeof value === 'string') return value.replace(CONTROL_CHARS, ' ').trim().slice(0, max)
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return null
-}
 
 function statCells(values, maxLength = 16) {
   if (!Array.isArray(values)) return []

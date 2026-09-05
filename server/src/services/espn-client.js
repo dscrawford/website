@@ -17,6 +17,14 @@ export async function fetchSummary(sport, league, eventId) {
   )
 }
 
+// Full season schedule for one team; teamId must be pre-validated
+export async function fetchTeamSchedule(sport, league, teamId) {
+  return fetchJson(
+    `${ESPN_BASE_URL}/${sport}/${league}/teams/${teamId}/schedule`,
+    `${league} schedule`
+  )
+}
+
 async function fetchJson(url, label) {
 
   const controller = new AbortController()

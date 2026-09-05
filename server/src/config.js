@@ -12,12 +12,17 @@ export const LEAGUES = Object.freeze([
 export const GAME_ID_PATTERN = /^\d{1,12}$/
 // Fallback ids for events ESPN gave no id: FNV-1a hex of the matchup
 export const HASH_ID_PATTERN = /^h[0-9a-f]{8,16}$/
+// ESPN team ids are short numeric strings; no leading zeros so each team
+// has exactly one cache key and upstream URL
+export const TEAM_ID_PATTERN = /^(?:0|[1-9]\d{0,9})$/
 
 export const ESPN_BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'
 
 export const POLL_INTERVAL_MS = 45_000
 export const POLL_STAGGER_MS = 2_000
 export const CACHE_TTL_SECONDS = 60
+// Season schedules change at most a few times a day
+export const SCHEDULE_CACHE_TTL_SECONDS = 300
 export const CACHE_KEY_PREFIX = 'scores'
 
 export const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379'

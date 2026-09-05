@@ -1,12 +1,9 @@
 // ESPN's feed is untrusted upstream: everything here is the single trust
 // boundary before data reaches Redis and every visitor's browser
-const LOGO_HOSTS = new Set(['a.espncdn.com', 'a1.espncdn.com'])
+import { TEAM_ID_PATTERN } from '../config.js'
+import { str } from './sanitize.js'
 
-function str(value, max = 64) {
-  if (typeof value === 'string') return value.slice(0, max)
-  if (typeof value === 'number') return String(value)
-  return null
-}
+const LOGO_HOSTS = new Set(['a.espncdn.com', 'a1.espncdn.com'])
 
 function safeLogo(url) {
   if (typeof url !== 'string') return null
@@ -18,10 +15,16 @@ function safeLogo(url) {
   }
 }
 
+function teamId(value) {
+  const id = str(value, 16)
+  return id && TEAM_ID_PATTERN.test(id) ? id : null
+}
+
 function transformCompetitor(competitor) {
   const team = competitor.team || {}
   const score = Number.parseInt(competitor.score ?? '0', 10)
   return Object.freeze({
+    id: teamId(team.id),
     name: str(team.displayName) || str(team.name) || 'Unknown',
     abbreviation: str(team.abbreviation, 8) || '???',
     logo: safeLogo(team.logo),

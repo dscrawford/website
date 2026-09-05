@@ -1,0 +1,12 @@
+.sched-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .sched-panel {
+    grid-template-columns: 1fr;
+  }
+}

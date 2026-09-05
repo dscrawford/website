@@ -8,8 +8,8 @@ const GAME = {
   startTime: '2026-08-28T20:00:00Z',
   status: { state: 'in', period: 5, clock: '0:00', detail: 'Top 5th', completed: false },
   broadcasts: [],
-  homeTeam: { name: 'Cubs', abbreviation: 'CHC', score: 3, logo: null, record: null, homeAway: 'home' },
-  awayTeam: { name: 'Reds', abbreviation: 'CIN', score: 2, logo: null, record: null, homeAway: 'away' },
+  homeTeam: { id: '16', name: 'Cubs', abbreviation: 'CHC', score: 3, logo: null, record: null, homeAway: 'home' },
+  awayTeam: { id: '17', name: 'Reds', abbreviation: 'CIN', score: 2, logo: null, record: null, homeAway: 'away' },
 }
 
 const BOX = {
@@ -33,6 +33,18 @@ const BOX = {
 
 function mockEndpoints({ leagues, box } = {}) {
   globalThis.fetch = vi.fn((url) => {
+    const sched = String(url).match(/\/api\/scores\/mlb\/teams\/(\d+)\/schedule/)
+    if (sched) {
+      const abbreviation = sched[1] === '16' ? 'CHC' : 'CIN'
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { teamId: sched[1], team: { abbreviation, name: abbreviation }, season: '2026', fetchedAt: 'x', games: [] },
+          error: null,
+        }),
+      })
+    }
     if (String(url).startsWith('/api/scores/mlb/games/')) {
       return Promise.resolve({
         ok: true,
@@ -56,12 +68,14 @@ function mockEndpoints({ leagues, box } = {}) {
 describe('GameBoxScorePage', () => {
   beforeEach(() => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    HTMLElement.prototype.scrollTo = vi.fn()
   })
 
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
     delete globalThis.fetch
+    delete HTMLElement.prototype.scrollTo
   })
 
   it('resolves the league from the scoreboard and renders header + box score', async () => {
@@ -104,5 +118,13 @@ describe('GameBoxScorePage', () => {
     render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
     fireEvent.mouseEnter(await screen.findByRole('columnheader', { name: 'STL' }))
     expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('shows both teams season schedules once the game resolves', async () => {
+    mockEndpoints()
+    render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
+    await waitFor(() => expect(screen.getAllByRole('region')).toHaveLength(2))
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/17/schedule', expect.anything())
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/16/schedule', expect.anything())
   })
 })

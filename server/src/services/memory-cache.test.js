@@ -56,4 +56,24 @@ describe('cache service — memory backend', () => {
     await expect(client.connect()).resolves.toBeUndefined()
     await expect(cache.disconnect()).resolves.toBeUndefined()
   })
+
+  it('sweeps expired entries on write instead of holding them until re-read', async () => {
+    const cache = await memoryCache()
+    await cache.set('sched:mlb:1', { games: [] }, 10)
+    vi.advanceTimersByTime(11_000)
+    await cache.set('sched:mlb:2', { games: [] }, 10)
+    expect(await cache.get('sched:mlb:1')).toBeNull()
+    expect(await cache.get('sched:mlb:2')).toEqual({ games: [] })
+  })
+
+  it('caps the number of live entries, evicting the oldest first', async () => {
+    const cache = await memoryCache()
+    for (let i = 0; i < 600; i++) {
+      await cache.set(`sched:mlb:${i}`, { i }, 3600)
+    }
+    expect(await cache.get('sched:mlb:0')).toBeNull()
+    expect(await cache.get('sched:mlb:99')).toBeNull()
+    expect(await cache.get('sched:mlb:100')).toEqual({ i: 100 })
+    expect(await cache.get('sched:mlb:599')).toEqual({ i: 599 })
+  })
 })
