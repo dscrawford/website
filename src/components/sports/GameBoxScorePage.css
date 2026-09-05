@@ -35,3 +35,18 @@
   gap: 10px;
   margin-bottom: 16px;
 }
+
+.game-page-venue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: #8888aa;
+}
+
+.game-page-matchup {
+  font-weight: 700;
+  color: #c0c0d0;
+}

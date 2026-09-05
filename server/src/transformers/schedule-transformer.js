@@ -48,6 +48,7 @@ function transformEvent(event, teamId) {
       name: str(them.team?.displayName) || str(them.team?.name) || 'Unknown',
     }),
     home: us.homeAway === 'home',
+    neutral: competition.neutralSite === true,
     teamScore,
     opponentScore,
     result: completed ? result(us, them, teamScore, opponentScore) : null,

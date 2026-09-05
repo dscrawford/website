@@ -59,6 +59,20 @@ function hashId(away, home, sport, startTime) {
   return `h${hash.toString(16).padStart(8, '0')}`
 }
 
+// Stadium plus city and region. ESPN sends US states as either "TX" or
+// "Ohio" and omits state abroad, so the country stands in for it there
+function transformVenue(venue) {
+  if (!venue || typeof venue !== 'object') return null
+  const name = str(venue.fullName, 80)
+  if (!name) return null
+  const address = venue.address || {}
+  return Object.freeze({
+    name,
+    city: str(address.city, 48),
+    state: str(address.state, 32) || str(address.country, 32),
+  })
+}
+
 export function transformEvent(event, leagueKey = '') {
   const competition = event.competitions?.[0]
   if (!competition) return null
@@ -93,6 +107,8 @@ export function transformEvent(event, leagueKey = '') {
     }),
     broadcasts: Object.freeze(extractBroadcasts(competition)),
     startTime,
+    venue: transformVenue(competition.venue),
+    neutralSite: competition.neutralSite === true,
   })
 }
 

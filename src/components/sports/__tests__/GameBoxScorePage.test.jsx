@@ -127,4 +127,19 @@ describe('GameBoxScorePage', () => {
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/17/schedule', expect.anything())
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/16/schedule', expect.anything())
   })
+
+  it('shows the matchup with the stadium, city and state', async () => {
+    const venue = { name: 'Wrigley Field', city: 'Chicago', state: 'IL' }
+    mockEndpoints({ leagues: { mlb: { league: 'mlb', sport: 'baseball', label: 'MLB', games: [{ ...GAME, venue, neutralSite: false }] } } })
+    render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
+    expect((await screen.findByText('CIN @ CHC')).className).toBe('game-page-matchup')
+    expect(screen.getByText('Wrigley Field \u00B7 Chicago, IL')).toBeTruthy()
+  })
+
+  it('reads "vs" at a neutral site and omits the stadium line when unknown', async () => {
+    mockEndpoints({ leagues: { mlb: { league: 'mlb', sport: 'baseball', label: 'MLB', games: [{ ...GAME, venue: null, neutralSite: true }] } } })
+    render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
+    expect(await screen.findByText('CIN vs CHC')).toBeTruthy()
+    expect(document.querySelector('.game-page-stadium')).toBeNull()
+  })
 })

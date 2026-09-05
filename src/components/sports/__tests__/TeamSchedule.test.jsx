@@ -75,6 +75,12 @@ describe('TeamSchedule', () => {
     expect(container.querySelector('.sched-record')).toBeNull()
   })
 
+  it('reads "vs" for neutral-site games even when the team is listed as away', () => {
+    const neutral = { ...SCHEDULE, games: [game('n', '2026-10-10T16:30Z', { home: false, neutral: true, opponent: { abbreviation: 'TEX', name: 'Texas' } })] }
+    render(<TeamSchedule schedule={neutral} loading={false} error={false} onRetry={noop} currentGameId="n" />)
+    expect(screen.getByText('vs TEX')).toBeTruthy()
+  })
+
   it('shows status instead of a score for postponed and upcoming games, and the live score for in-progress ones', () => {
     render(<TeamSchedule schedule={SCHEDULE} loading={false} error={false} onRetry={noop} currentGameId="5" />)
     const rows = screen.getAllByRole('listitem')

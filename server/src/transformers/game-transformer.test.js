@@ -75,7 +75,35 @@ describe('transformEvent', () => {
       },
       broadcasts: ['ESPN'],
       startTime: '2026-08-21T18:00:00Z',
+      venue: null,
+      neutralSite: false,
     })
+  })
+
+  it('maps the venue and neutral-site flag', () => {
+    const ev = makeEvent()
+    ev.competitions[0].venue = { fullName: 'Cotton Bowl', address: { city: 'Dallas', state: 'TX', country: 'USA' } }
+    ev.competitions[0].neutralSite = true
+    const result = transformEvent(ev)
+    expect(result.venue).toEqual({ name: 'Cotton Bowl', city: 'Dallas', state: 'TX' })
+    expect(result.neutralSite).toBe(true)
+    expect(Object.isFrozen(result.venue)).toBe(true)
+  })
+
+  it('uses the country when a venue abroad has no state, and drops nameless or hostile venues', () => {
+    const ev = makeEvent()
+    ev.competitions[0].venue = { fullName: 'Aviva Stadium', address: { city: 'Dublin', country: 'Ireland' } }
+    expect(transformEvent(ev).venue).toEqual({ name: 'Aviva Stadium', city: 'Dublin', state: 'Ireland' })
+    ev.competitions[0].venue = { address: { city: 'Nowhere' } }
+    expect(transformEvent(ev).venue).toBeNull()
+    ev.competitions[0].venue = 'Cotton Bowl'
+    expect(transformEvent(ev).venue).toBeNull()
+    ev.competitions[0].venue = { fullName: 'x'.repeat(300), address: { city: 7, state: { evil: 1 } } }
+    const hostile = transformEvent(ev).venue
+    expect(hostile.name.length).toBeLessThanOrEqual(80)
+    expect(hostile).toMatchObject({ city: '7', state: null })
+    ev.competitions[0].neutralSite = 'true'
+    expect(transformEvent(ev).neutralSite).toBe(false)
   })
 
   it('only keeps numeric team ids so they can be used in upstream URLs', () => {

@@ -14,7 +14,7 @@ const ScheduleRow = memo(function ScheduleRow({ game, current }) {
     <li className={`sched-row${current ? ' sched-row--current' : ''}`} aria-current={current ? 'true' : undefined}>
       <span className="sched-date">{formatDate(game.date)}</span>
       <span className="sched-opp">
-        {game.home ? 'vs' : '@'} {game.opponent.abbreviation}
+        {game.home || game.neutral ? 'vs' : '@'} {game.opponent.abbreviation}
       </span>
       <span className="sched-score">
         {hasScore && `${game.teamScore}-${game.opponentScore}`}

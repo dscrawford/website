@@ -3,6 +3,7 @@ import TeamRow from './TeamRow.jsx'
 import StatusBadge from './StatusBadge.jsx'
 import BoxScore from './BoxScore.jsx'
 import SchedulePanel from './SchedulePanel.jsx'
+import { formatMatchup, formatVenue } from './gameVenue.js'
 import useSportsData from '../../hooks/useSportsData.js'
 import useBoxScore from '../../hooks/useBoxScore.js'
 import './GameBoxScorePage.css'
@@ -54,6 +55,10 @@ export default function GameBoxScorePage({ navigate, gameId }) {
                 <TeamRow team={game.homeTeam} isWinning={game.homeTeam.score > game.awayTeam.score} />
               </div>
               <StatusBadge status={game.status} startTime={game.startTime} />
+              <p className="game-page-venue">
+                <span className="game-page-matchup">{formatMatchup(game)}</span>
+                {game.venue && <span className="game-page-stadium">{formatVenue(game.venue)}</span>}
+              </p>
             </div>
             <SchedulePanel leagueKey={leagueKey} game={game} />
             <BoxScore boxScore={boxScore} sport={sport} loading={loading} error={error} onRetry={retry} />
