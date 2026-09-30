@@ -24,20 +24,42 @@ pub fn well_exempt_fill(m: &board::BoardMetrics, width: u32, height: u32) -> f64
         .min(1.0)
 }
 
-/// Weights were evolved on a 10x20 board (area 200). The target-deviation
-/// term is dimensionless while other terms count cells, so on larger boards
-/// per-cell target attraction collapses and per-cell penalties (top-half
-/// safety, burn rewards) stall the stack near half height. Full area scaling
-/// overshoots the other way: fill is aggregate-height-based, and an attraction
-/// term that dwarfs hole penalties buys height via overhangs until topout.
-/// A sqrt boost on attraction plus shrinking the top-of-board safety terms
-/// splits the correction between both sides of the balance.
+/// Weights were evolved on a 10x20 board (area 200). Cell-counting terms
+/// (holes, transitions, top-of-board safety) keep their meaning on any board
+/// shape; the area ratio rescales the ones that do not.
 pub fn board_area_ratio(width: u32, height: u32) -> f64 {
     (width as f64 * height as f64).max(1.0) / 200.0
 }
 
+/// Cells the stack is measured over: every column except the well, which
+/// `well_exempt_fill` exempts.
+fn stacking_cells(width: u32, height: u32) -> f64 {
+    (width.saturating_sub(1).max(1) * height) as f64
+}
+
+/// Stacking cells on the 71x40 laptop/widescreen board, divided by the norm
+/// that board ran with before this scaling was derived — the anchor that
+/// keeps the widescreen behaviour (clean, flat, ~70% fill) exactly as it was.
+const TARGET_NORM_REF_CELLS: f64 = 743.0;
+
+/// The target-deviation term is the only term expressed as a *fraction* of
+/// the board; every other weight prices cells. One placed piece moves the
+/// fill fraction by ~4 / stacking-cells, so unless the normalization cancels
+/// that divisor, the per-piece pull toward target fill grows as the board
+/// gets smaller. Under the old sqrt(area) norm a phone board (18x40) valued
+/// a piece's fill gain ~2x, and a narrow window (10x40) ~4x, what the
+/// widescreen board did — enough to outbid the hole and bumpiness penalties,
+/// so the solver bought height with overhangs and buried itself. Scaling by
+/// the stacking-cell count makes the per-piece pull identical on every board
+/// shape, anchored so 71x40 is unchanged.
 pub fn target_norm(width: u32, height: u32) -> f64 {
-    board_area_ratio(width, height).sqrt()
+    target_norm_over(stacking_cells(width, height))
+}
+
+/// `target_norm` for strategies that stack over a different cell count —
+/// 4-wide stacks only the tower columns flanking its well.
+pub fn target_norm_over(cells: f64) -> f64 {
+    cells.max(1.0) / TARGET_NORM_REF_CELLS
 }
 
 pub fn top_penalty_norm(width: u32, height: u32) -> f64 {
@@ -232,10 +254,22 @@ fn evaluate_fw_fast(
     let well_clean_ratio = 1.0 - (m.well_fill_count as f64 / well_area as f64);
 
     let balance_penalty = (m.left_tower_avg_height - m.right_tower_avg_height).abs();
-    let avg_fill = m.aggregate_height as f64 / (width as f64 * height as f64);
+
+    // Fill is measured over the tower columns only. The well stays empty by
+    // design, so counting it makes the target unreachable in proportion to
+    // how much of the board it occupies: 4 of 71 columns on a widescreen but
+    // 4 of 18 on a phone, where a 0.75 whole-board target would demand towers
+    // at 96% of board height — i.e. a topout.
+    let left_cols = well_start as f64;
+    let right_cols = width.saturating_sub(well_end + 1) as f64;
+    let tower_cols = (left_cols + right_cols).max(1.0);
+    let avg_fill = ((m.left_tower_avg_height * left_cols + m.right_tower_avg_height * right_cols)
+        / (tower_cols * height as f64))
+        .min(1.0);
     let below_target = avg_fill < target_fill;
     let deviation = (avg_fill - target_fill).abs();
-    let target_penalty = p.fw_height_gap * deviation * deviation * target_norm(width, height);
+    let target_penalty =
+        p.fw_height_gap * deviation * deviation * target_norm_over(tower_cols * height as f64);
 
     let holes = m.holes as f64;
     let covered = m.covered_cells as f64;
@@ -580,12 +614,31 @@ mod tests {
     }
 
     #[test]
-    fn norms_are_unity_on_the_evolution_board_and_scale_with_area() {
-        assert!((target_norm(10, 20) - 1.0).abs() < 1e-12);
+    fn target_norm_keeps_per_piece_attraction_board_independent() {
+        // One piece adds ~4 cells of aggregate height, so its effect on the
+        // fill fraction is 4 / stacking_cells; the norm must cancel that.
+        let per_piece = |w: u32, h: u32| 4.0 / stacking_cells(w, h) * target_norm(w, h);
+        let widescreen = per_piece(71, 40);
+        for (w, h) in [(10, 20), (10, 40), (18, 40), (23, 40), (40, 40), (93, 40), (999, 40)] {
+            let ratio = per_piece(w, h) / widescreen;
+            assert!(
+                (ratio - 1.0).abs() < 1e-9,
+                "{w}x{h}: per-piece target pull is {ratio}x the widescreen board"
+            );
+        }
+    }
+
+    #[test]
+    fn target_norm_is_anchored_on_the_widescreen_board() {
+        // 71x40 is the laptop/1080p/1440p board; its tuning is the reference
+        // the other shapes were scaled onto, so it must not drift.
+        assert!((target_norm(71, 40) - (71.0 * 40.0 / 200.0f64).sqrt()).abs() < 0.01);
+    }
+
+    #[test]
+    fn top_penalty_norm_is_unity_on_the_evolution_board_and_shrinks_with_area() {
         assert!((top_penalty_norm(10, 20) - 1.0).abs() < 1e-12);
-        assert!((target_norm(40, 40) - 8.0f64.sqrt()).abs() < 1e-12);
         assert!((top_penalty_norm(40, 40) - 0.125).abs() < 1e-12);
-        assert!((target_norm(71, 40) - 14.2f64.sqrt()).abs() < 1e-12);
     }
 
     #[test]

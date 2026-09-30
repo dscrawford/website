@@ -46,13 +46,24 @@ const OPCODE_ACTIONS = {
 // Speeds beyond the animated slider range fall back to instant placement
 export const TELEPORT_SPEED_THRESHOLD = 20
 
-// Hysteresis thresholds for the stacking/scoring cycle. STACK_TARGET is the
-// fill the solver steers toward; the flip to scoring sits slightly below it
-// because the solver's target attraction (and so the climb rate) vanishes at
-// the target itself, so exactly-at-target is never reached.
-const STACK_TARGET = 0.75  // solver target while stacking
-const STACK_FLIP = 0.70    // fill at which we flip to scoring
-const SCORE_TARGET = 0.10  // score down to 10% fill
+// Hysteresis thresholds for the stacking/scoring cycle. The stack target is
+// the fill the solver steers toward; the flip to scoring sits slightly below
+// it because the solver's target attraction (and so the climb rate) vanishes
+// at the target itself, so exactly-at-target is never reached.
+const BASE_STACK_TARGET = 0.75  // solver target while stacking
+const FLIP_MARGIN = 0.05        // flip to scoring this far below target
+const SCORE_TARGET = 0.10       // score down to 10% fill
+
+// Very narrow boards (a skinny desktop window clamps to MIN_BOARD_WIDTH=10)
+// cannot safely hold the full target: with only a handful of stacking columns
+// there is nowhere to park an awkward piece, so a 75% stack tops out before
+// the scoring phase can drain it. Every column of extra room buys 2% of
+// target, reaching the full 0.75 at 15 stacking columns — phone boards
+// (~18 wide) and up are unaffected.
+export function stackTargetFor(width) {
+  const cols = Math.max(width - 1, 1)
+  return Math.min(BASE_STACK_TARGET, 0.45 + 0.02 * cols)
+}
 
 // Mirrors evaluator_param::well_exempt_fill in the Rust solver: aggregate
 // column height with the well column (rightmost lowest) exempted. Cell-count
@@ -98,7 +109,7 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
   const modeRef = useRef('stacking')
 
   // Exposed debug info for sidebar display
-  const aiInfoRef = useRef({ mode: 'stacking', fill: 0, target: STACK_TARGET })
+  const aiInfoRef = useRef({ mode: 'stacking', fill: 0, target: BASE_STACK_TARGET })
 
   useEffect(() => {
     initSolver().then((mod) => {
@@ -131,14 +142,15 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
     }
 
     // --- Update hysteresis mode based on current board fill ---
+    const stackTarget = stackTargetFor(state.width)
     const fill = wellExemptFill(state)
-    if (modeRef.current === 'stacking' && fill >= STACK_FLIP) {
+    if (modeRef.current === 'stacking' && fill >= stackTarget - FLIP_MARGIN) {
       modeRef.current = 'scoring'
     } else if (modeRef.current === 'scoring' && fill <= SCORE_TARGET) {
       modeRef.current = 'stacking'
     }
 
-    const currentTarget = modeRef.current === 'stacking' ? STACK_TARGET : SCORE_TARGET
+    const currentTarget = modeRef.current === 'stacking' ? stackTarget : SCORE_TARGET
     aiInfoRef.current = { mode: modeRef.current, fill, target: currentTarget }
     window.__tetrisAI = aiInfoRef.current
     const speed = speedRef.current
@@ -152,12 +164,13 @@ export function useAutoSolver(stateRef, updateState, enabled, speedMultiplier = 
       while (iterations < maxIterations && s && !s.gameOver) {
         // Recompute mode for each piece at high speed
         const f = wellExemptFill(s)
-        if (modeRef.current === 'stacking' && f >= STACK_FLIP) {
+        const sTarget = stackTargetFor(s.width)
+        if (modeRef.current === 'stacking' && f >= sTarget - FLIP_MARGIN) {
           modeRef.current = 'scoring'
         } else if (modeRef.current === 'scoring' && f <= SCORE_TARGET) {
           modeRef.current = 'stacking'
         }
-        const target = modeRef.current === 'stacking' ? STACK_TARGET : SCORE_TARGET
+        const target = modeRef.current === 'stacking' ? sTarget : SCORE_TARGET
 
         if (moveQueueRef.current.length === 0) {
           const moves = solveMoves(s, target, strategyRef.current)

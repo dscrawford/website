@@ -17,7 +17,7 @@ const engineMocks = vi.hoisted(() => ({
 
 vi.mock('../../game-engine/engine-interface.js', () => engineMocks)
 
-import { useAutoSolver, TELEPORT_SPEED_THRESHOLD, wellExemptFill } from '../useAutoSolver.js'
+import { useAutoSolver, TELEPORT_SPEED_THRESHOLD, wellExemptFill, stackTargetFor } from '../useAutoSolver.js'
 
 const OPCODE_LEFT = 0
 const OPCODE_HARD_DROP = 4
@@ -144,11 +144,12 @@ describe('useAutoSolver — stack/score hysteresis', () => {
     engineMocks.solveMoves.mockReset()
   })
 
-  it('flips to scoring at 70% well-exempt fill and requests the score target', async () => {
+  it('flips to scoring at the flip threshold and requests the score target', async () => {
     engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
-    // cols 0-8 at height 15, well empty: 135/180 = 75% well-exempt fill
-    const heights = [...new Array(9).fill(15), 0]
-    const state = baseState({ board: boardWithHeights(10, 20, heights) })
+    // Phone board (18 wide): cols 0-16 at height 15, well empty
+    // -> 255/340 = 75% well-exempt fill, past the 70% flip
+    const heights = [...new Array(17).fill(15), 0]
+    const state = baseState({ width: 18, board: boardWithHeights(18, 20, heights) })
     const { result } = await setup(1, state)
     act(() => {
       result.current.executeMoves(0)
@@ -158,13 +159,67 @@ describe('useAutoSolver — stack/score hysteresis', () => {
 
   it('keeps stacking toward the 75% target below the flip threshold', async () => {
     engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
-    // cols 0-8 at height 12: 108/180 = 60%
-    const heights = [...new Array(9).fill(12), 0]
-    const state = baseState({ board: boardWithHeights(10, 20, heights) })
+    // cols 0-16 at height 12: 204/340 = 60%
+    const heights = [...new Array(17).fill(12), 0]
+    const state = baseState({ width: 18, board: boardWithHeights(18, 20, heights) })
     const { result } = await setup(1, state)
     act(() => {
       result.current.executeMoves(0)
     })
     expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.75, 10)
+  })
+
+  it('asks a minimum-width board for its reduced target', async () => {
+    engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
+    // 10 wide: 9 stacking columns -> 0.63 target, flip at 0.58.
+    // cols 0-8 at height 10: 90/180 = 50%, still stacking.
+    const heights = [...new Array(9).fill(10), 0]
+    const state = baseState({ board: boardWithHeights(10, 20, heights) })
+    const { result } = await setup(1, state)
+    act(() => {
+      result.current.executeMoves(0)
+    })
+    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.63, 10)
+  })
+})
+
+describe('useAutoSolver — stackTargetFor across viewport board widths', () => {
+  // Board widths the site produces: cell = floor(vh / 40),
+  // width = clamp(floor(vw / cell), 10, 999)
+  const VIEWPORT_WIDTHS = {
+    'iPhone SE portrait': 23,
+    'iPhone 14 portrait': 18,
+    'iPhone 14 landscape': 93,
+    'iPad portrait': 28,
+    'iPad landscape': 59,
+    'laptop / 1080p / 1440p': 71,
+    ultrawide: 95,
+  }
+
+  it('asks for the full 0.75 target on every real viewport board', () => {
+    for (const [label, width] of Object.entries(VIEWPORT_WIDTHS)) {
+      expect(stackTargetFor(width), label).toBeCloseTo(0.75, 10)
+    }
+  })
+
+  it('backs the target off on boards too narrow to hold it', () => {
+    // MIN_BOARD_WIDTH=10 (a skinny desktop window) -> 9 stacking columns
+    expect(stackTargetFor(10)).toBeCloseTo(0.63, 10)
+    expect(stackTargetFor(13)).toBeCloseTo(0.69, 10)
+  })
+
+  it('rises monotonically with width and never exceeds the base target', () => {
+    let prev = 0
+    for (let width = 10; width <= 999; width++) {
+      const target = stackTargetFor(width)
+      expect(target).toBeGreaterThanOrEqual(prev)
+      expect(target).toBeLessThanOrEqual(0.75)
+      prev = target
+    }
+  })
+
+  it('reaches the full target at 16 columns and stays there', () => {
+    expect(stackTargetFor(15)).toBeLessThan(0.75)
+    expect(stackTargetFor(16)).toBeCloseTo(0.75, 10)
   })
 })

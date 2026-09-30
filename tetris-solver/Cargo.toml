@@ -30,6 +30,10 @@ required-features = ["evolve"]
 name = "fill_trace"
 required-features = ["evolve"]
 
+[[example]]
+name = "res_sweep"
+required-features = ["evolve"]
+
 # WASM release: optimize for size
 [profile.release]
 opt-level = "s"

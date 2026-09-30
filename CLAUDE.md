@@ -27,7 +27,17 @@ npm run test:coverage    # Coverage report (target: 80%+)
 
 # Rust/WASM (when tetris-engine crate exists)
 wasm-pack build --target web    # Build WASM module
+
+# Solver tests (run from tetris-solver/; --release, the sims are slow in debug)
+cargo test --release                            # unit + resolution regression suite
+cargo run --profile release-evolve --features evolve --example res_sweep
+                                                # headless quality sweep per viewport
 ```
+
+Board shape follows the viewport (`cell = floor(vh / 40)`, `cols = clamp(floor(vw / cell), 10, 999)`),
+so a phone plays ~18x40 and a widescreen ~71x40. `tetris-solver/tests/resolution_scaling.rs`
+guards solver quality across those shapes; `examples/res_sweep.rs` prints the same
+measurements (topouts, holes, bumpiness, fill) for tuning.
 
 ## Architecture
 
