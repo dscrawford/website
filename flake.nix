@@ -89,8 +89,12 @@
                 proxy_set_header X-Real-IP $remote_addr;
               }
 
+              # The HTML names hashed assets, so it must be revalidated on
+              # every load; without this, nix's 1980 mtime makes browsers
+              # treat it as fresh for years and keep an old bundle
               location / {
                 try_files $uri $uri/ /index.html;
+                add_header Cache-Control "no-cache";
               }
 
               location ~* \.(js|css|wasm|svg|ico|png|jpg|jpeg|gif|webp|woff2?)$ {
