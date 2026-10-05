@@ -54,15 +54,17 @@ const BASE_STACK_TARGET = 0.75  // solver target while stacking
 const FLIP_MARGIN = 0.05        // flip to scoring this far below target
 const SCORE_TARGET = 0.10       // score down to 10% fill
 
-// Very narrow boards (a skinny desktop window clamps to MIN_BOARD_WIDTH=10)
-// cannot safely hold the full target: with only a handful of stacking columns
-// there is nowhere to park an awkward piece, so a 75% stack tops out before
-// the scoring phase can drain it. Every column of extra room buys 2% of
-// target, reaching the full 0.75 at 15 stacking columns — phone boards
-// (~18 wide) and up are unaffected.
-export function stackTargetFor(width) {
+// Headroom scales with how narrow the board is. The solver holds a well
+// for a vertical I and keeps stacking while it waits for one; a 14-bag can
+// go ~12 pieces without an I, and those 48 cells are under a row on a
+// widescreen's 70 columns but three rows on a phone's 17 — plus the stack
+// is bumpier with fewer columns. Reserving that drought's worth of rows
+// below the base target keeps the peaks off the ceiling on every shape:
+// ~0.73 on a widescreen, ~0.68 on a phone, ~0.62 on a minimum-width window.
+const DROUGHT_CELLS = 72
+export function stackTargetFor(width, height = BOARD_HEIGHT) {
   const cols = Math.max(width - 1, 1)
-  return Math.min(BASE_STACK_TARGET, 0.45 + 0.02 * cols)
+  return BASE_STACK_TARGET - DROUGHT_CELLS / (cols * height)
 }
 
 // Mirrors evaluator_param::well_exempt_fill in the Rust solver: aggregate

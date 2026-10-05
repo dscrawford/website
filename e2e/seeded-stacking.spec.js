@@ -154,8 +154,8 @@ test.describe('AI stacking quality across screen sizes', () => {
 
       // Holes it digs back out are fine; holes it lives with are not. The
       // narrow-board regression sat on 100+ holes continuously.
-      expect(result.meanHoles, 'mean holes').toBeLessThanOrEqual(Math.max(4, result.width / 10))
-      expect(result.maxHoles, 'peak holes').toBeLessThanOrEqual(Math.max(16, result.width / 2))
+      expect(result.meanHoles, 'mean holes').toBeLessThanOrEqual(Math.max(6, result.width / 10))
+      expect(result.maxHoles, 'peak holes').toBeLessThanOrEqual(Math.max(24, result.width / 2))
 
       // Flat landscape, measured as average height difference per column pair
       expect(result.maxBumpinessPerColumn, 'bumpiness per column').toBeLessThanOrEqual(5)

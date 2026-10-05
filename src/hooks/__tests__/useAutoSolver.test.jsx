@@ -157,29 +157,30 @@ describe('useAutoSolver — stack/score hysteresis', () => {
     expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.10, 10)
   })
 
-  it('keeps stacking toward the 75% target below the flip threshold', async () => {
+  it("keeps stacking toward the board's target below the flip threshold", async () => {
     engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
-    // cols 0-16 at height 12: 204/340 = 60%
-    const heights = [...new Array(17).fill(12), 0]
+    // cols 0-16 at height 8: 136/340 = 40%, well under the phone board's flip
+    const heights = [...new Array(17).fill(8), 0]
     const state = baseState({ width: 18, board: boardWithHeights(18, 20, heights) })
     const { result } = await setup(1, state)
     act(() => {
       result.current.executeMoves(0)
     })
-    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.75, 10)
+    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(stackTargetFor(18), 10)
   })
 
   it('asks a minimum-width board for its reduced target', async () => {
     engineMocks.solveMoves.mockReturnValue([OPCODE_HARD_DROP])
-    // 10 wide: 9 stacking columns -> 0.63 target, flip at 0.58.
-    // cols 0-8 at height 10: 90/180 = 50%, still stacking.
-    const heights = [...new Array(9).fill(10), 0]
+    // 10 wide: 9 stacking columns. cols 0-8 at height 6: 54/180 = 30%,
+    // well under the flip, so the stacking target is requested
+    const heights = [...new Array(9).fill(6), 0]
     const state = baseState({ board: boardWithHeights(10, 20, heights) })
     const { result } = await setup(1, state)
     act(() => {
       result.current.executeMoves(0)
     })
-    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(0.63, 10)
+    expect(engineMocks.solveMoves.mock.calls[0][1]).toBeCloseTo(stackTargetFor(10), 10)
+    expect(stackTargetFor(10)).toBeLessThan(stackTargetFor(18))
   })
 })
 
@@ -196,30 +197,35 @@ describe('useAutoSolver — stackTargetFor across viewport board widths', () => 
     ultrawide: 95,
   }
 
-  it('asks for the full 0.75 target on every real viewport board', () => {
+  it('reserves headroom for an I-piece drought: ~1 row on a widescreen, ~4 on a phone', () => {
+    // 72 cells of non-I pieces spread over the stacking columns
+    expect(stackTargetFor(71)).toBeCloseTo(0.75 - 72 / (70 * 40), 10)
+    expect(stackTargetFor(18)).toBeCloseTo(0.75 - 72 / (17 * 40), 10)
+    expect(stackTargetFor(10)).toBeCloseTo(0.75 - 72 / (9 * 40), 10)
+  })
+
+  it('keeps every real viewport board between a 55% and 75% stack', () => {
     for (const [label, width] of Object.entries(VIEWPORT_WIDTHS)) {
-      expect(stackTargetFor(width), label).toBeCloseTo(0.75, 10)
+      const target = stackTargetFor(width)
+      expect(target, label).toBeGreaterThanOrEqual(0.6)
+      expect(target, label).toBeLessThan(0.75)
     }
+    expect(stackTargetFor(10)).toBeGreaterThanOrEqual(0.55)
   })
 
-  it('backs the target off on boards too narrow to hold it', () => {
-    // MIN_BOARD_WIDTH=10 (a skinny desktop window) -> 9 stacking columns
-    expect(stackTargetFor(10)).toBeCloseTo(0.63, 10)
-    expect(stackTargetFor(13)).toBeCloseTo(0.69, 10)
-  })
-
-  it('rises monotonically with width and never exceeds the base target', () => {
+  it('rises monotonically with width and never reaches the base target', () => {
     let prev = 0
     for (let width = 10; width <= 999; width++) {
       const target = stackTargetFor(width)
       expect(target).toBeGreaterThanOrEqual(prev)
-      expect(target).toBeLessThanOrEqual(0.75)
+      expect(target).toBeLessThan(0.75)
       prev = target
     }
   })
 
-  it('reaches the full target at 16 columns and stays there', () => {
-    expect(stackTargetFor(15)).toBeLessThan(0.75)
-    expect(stackTargetFor(16)).toBeCloseTo(0.75, 10)
+  it('scales with board height so the reserve is a fixed number of rows', () => {
+    // Same 72 cells over 17 columns: 4.2 rows is a bigger share of 20 than of 40
+    expect(stackTargetFor(18, 20)).toBeLessThan(stackTargetFor(18, 40))
+    expect((0.75 - stackTargetFor(18, 20)) * 20).toBeCloseTo((0.75 - stackTargetFor(18, 40)) * 40, 10)
   })
 })

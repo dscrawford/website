@@ -14,10 +14,12 @@ const BASE_STACK_TARGET: f64 = 0.75;
 const FLIP_MARGIN: f64 = 0.05;
 const SCORE_TARGET: f64 = 0.10;
 
-/// Mirrors stackTargetFor in src/hooks/useAutoSolver.js.
-fn stack_target(width: u32) -> f64 {
+/// Mirrors `stackTargetFor` in src/hooks/useAutoSolver.js: the base target
+/// less an I-piece drought's worth of cells spread over the stacking columns.
+const DROUGHT_CELLS: f64 = 72.0;
+fn stack_target(width: u32, height: u32) -> f64 {
     let cols = width.saturating_sub(1).max(1) as f64;
-    BASE_STACK_TARGET.min(0.45 + 0.02 * cols)
+    BASE_STACK_TARGET - DROUGHT_CELLS / (cols * height as f64)
 }
 
 struct Stats {
@@ -64,7 +66,7 @@ fn run(width: u32, height: u32, pieces: u32, strategy: Strategy, seed: u64) -> S
         let tallest = col_heights(&cells, width, height).into_iter().max().unwrap_or(0);
         st.max_col_h = st.max_col_h.max(tallest);
 
-        if !scoring && fill >= stack_target(width) - FLIP_MARGIN {
+        if !scoring && fill >= stack_target(width, height) - FLIP_MARGIN {
             scoring = true;
             st.score_phases += 1;
             st.holes_at_flip += m.holes as f64;
@@ -73,7 +75,7 @@ fn run(width: u32, height: u32, pieces: u32, strategy: Strategy, seed: u64) -> S
         }
         if scoring { st.score_pieces += 1; }
         st.holes_end = m.holes;
-        let target = if scoring { SCORE_TARGET } else { stack_target(width) };
+        let target = if scoring { SCORE_TARGET } else { stack_target(width, height) };
 
         let current = bag.next_piece(&mut rng);
         let queue = bag.peek_queue(5);

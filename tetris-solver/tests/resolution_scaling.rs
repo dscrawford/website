@@ -18,11 +18,12 @@ const BASE_STACK_TARGET: f64 = 0.75;
 const FLIP_MARGIN: f64 = 0.05;
 const SCORE_TARGET: f64 = 0.10;
 
-/// Mirrors `stackTargetFor` in src/hooks/useAutoSolver.js: boards too narrow
-/// to hold the full target stack for a lower one.
-fn stack_target(width: u32) -> f64 {
+/// Mirrors `stackTargetFor` in src/hooks/useAutoSolver.js: the base target
+/// less an I-piece drought's worth of cells spread over the stacking columns.
+const DROUGHT_CELLS: f64 = 72.0;
+fn stack_target(width: u32, height: u32) -> f64 {
     let cols = width.saturating_sub(1).max(1) as f64;
-    BASE_STACK_TARGET.min(0.45 + 0.02 * cols)
+    BASE_STACK_TARGET - DROUGHT_CELLS / (cols * height as f64)
 }
 
 /// Pieces simulated per board. Debug builds are slow, so the default is the
@@ -137,12 +138,12 @@ fn play(width: u32, height: u32, pieces: u32, strategy: Strategy, seed: u64) -> 
             .max(m.bumpiness as f64 / (width.max(2) - 1) as f64);
         out.max_col_height = out.max_col_height.max(tallest_column(&cells, width, height));
 
-        if !scoring && fill >= stack_target(width) - FLIP_MARGIN {
+        if !scoring && fill >= stack_target(width, height) - FLIP_MARGIN {
             scoring = true;
         } else if scoring && fill <= SCORE_TARGET {
             scoring = false;
         }
-        let target = if scoring { SCORE_TARGET } else { stack_target(width) };
+        let target = if scoring { SCORE_TARGET } else { stack_target(width, height) };
 
         let current = bag.next(&mut rng);
         let queue = bag.peek(5, &mut rng);
