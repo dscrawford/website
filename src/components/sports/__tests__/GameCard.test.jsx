@@ -40,4 +40,18 @@ describe('GameCard box score link', () => {
     render(<GameCard game={{ ...GAME, id: null }} navigate={vi.fn()} />)
     expect(screen.queryByRole('link', { name: /box score/i })).toBeNull()
   })
+
+  it("shows each team's record beside its name, and nothing when it is unknown", () => {
+    const withRecords = {
+      ...GAME,
+      homeTeam: { ...GAME.homeTeam, record: '71-70' },
+      awayTeam: { ...GAME.awayTeam, record: '80-61' },
+    }
+    const { container, rerender } = render(<GameCard game={withRecords} navigate={vi.fn()} />)
+    expect(screen.getByText('71-70').className).toBe('team-record')
+    expect(screen.getByText('80-61').className).toBe('team-record')
+
+    rerender(<GameCard game={GAME} navigate={vi.fn()} />)
+    expect(container.querySelector('.team-record')).toBeNull()
+  })
 })

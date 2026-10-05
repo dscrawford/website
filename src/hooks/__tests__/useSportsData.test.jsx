@@ -109,4 +109,20 @@ describe('useSportsData', () => {
     vi.advanceTimersByTime(120_000)
     expect(fetch.mock.calls.length).toBe(callsBefore)
   })
+
+  it('fetches a specific day without polling, and refetches when the day changes', async () => {
+    vi.useFakeTimers()
+    fetch.mockResolvedValue(jsonResponse({ success: true, data: { date: '2026-09-04', leagues: { mlb: { games: [] } } } }))
+    const { result, rerender } = renderHook(({ date }) => useSportsData(date), { initialProps: { date: '2026-09-04' } })
+    await act(async () => {})
+    expect(fetch).toHaveBeenCalledWith('/api/scores?date=2026-09-04', expect.anything())
+    expect(result.current.leagues).toEqual({ mlb: { games: [] } })
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    rerender({ date: '2026-09-05' })
+    await act(async () => {})
+    expect(fetch).toHaveBeenLastCalledWith('/api/scores?date=2026-09-05', expect.anything())
+  })
 })

@@ -5,16 +5,20 @@ const GAME = {
   startTime: '2026-09-04T20:00:00Z',
   status: { state: 'in', period: 5, clock: '0:00', detail: 'Top 5th', completed: false },
   broadcasts: [],
-  homeTeam: { id: '5', name: 'Guardians', abbreviation: 'CLE', score: 3, logo: null, record: null, homeAway: 'home' },
-  awayTeam: { id: '6', name: 'Tigers', abbreviation: 'DET', score: 2, logo: null, record: null, homeAway: 'away' },
+  homeTeam: { id: '5', name: 'Guardians', abbreviation: 'CLE', score: 3, logo: null, record: '71-70', homeAway: 'home' },
+  awayTeam: { id: '6', name: 'Tigers', abbreviation: 'DET', score: 2, logo: null, record: '80-61', homeAway: 'away' },
 }
 
 // 40 played games, the live game, then 10 upcoming: long enough to need a scrollbar
 function schedule(teamId, abbreviation) {
   const games = []
+  const tally = { W: 0, L: 0, T: 0 }
   for (let i = 0; i < 40; i++) {
     const result = ['W', 'L', 'T'][i % 3]
+    tally[result] += 1
     games.push({
+      record: `${tally.W}-${tally.L}-${tally.T}`,
+      opponentRecord: `${i + 1}-0`,
       id: `p${i}`,
       date: `2026-06-${String((i % 28) + 1).padStart(2, '0')}T00:00Z`,
       opponent: { abbreviation: 'OPP', name: 'Opponent' },
@@ -93,6 +97,13 @@ test.describe('Team season schedules on the game page', () => {
     const current = panels.nth(0).locator('[aria-current="true"]')
     await expect(current).toBeVisible()
     await expect(current).toContainText('CLE')
+
+    // Records as of each game: the opponent's beside its name, ours beside
+    // the result; the scoreboard records sit beside the header team names
+    const played = panels.nth(0).locator('li').nth(5)
+    await expect(played.locator('.sched-opp-record')).toHaveText('6-0')
+    await expect(played.locator('.sched-row-record')).toHaveText('2-2-2')
+    await expect(page.locator('.game-page-header .team-record')).toHaveText(['80-61', '71-70'])
     const inView = await list.evaluate((el) => {
       const rows = Array.from(el.querySelectorAll('li'))
       const idx = rows.findIndex((r) => r.getAttribute('aria-current') === 'true')

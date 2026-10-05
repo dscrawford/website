@@ -1,10 +1,11 @@
 import TeamSchedule from './TeamSchedule.jsx'
 import useTeamSchedule from '../../hooks/useTeamSchedule.js'
+import { teamPath } from './leagues.js'
 import './SchedulePanel.css'
 
 // Both teams' season schedules for the game page: side by side on wide
 // screens, stacked on phones (see SchedulePanel.css)
-export default function SchedulePanel({ leagueKey, game }) {
+export default function SchedulePanel({ leagueKey, game, navigate }) {
   const awayId = game?.awayTeam?.id ?? null
   const homeId = game?.homeTeam?.id ?? null
   const away = useTeamSchedule(leagueKey, awayId)
@@ -22,6 +23,9 @@ export default function SchedulePanel({ leagueKey, game }) {
           onRetry={away.retry}
           currentGameId={game.id}
           record={game.awayTeam.record ?? null}
+          leagueKey={leagueKey}
+          navigate={navigate}
+          teamHref={teamPath(leagueKey, awayId)}
         />
       )}
       {homeId && (
@@ -32,6 +36,9 @@ export default function SchedulePanel({ leagueKey, game }) {
           onRetry={home.retry}
           currentGameId={game.id}
           record={game.homeTeam.record ?? null}
+          leagueKey={leagueKey}
+          navigate={navigate}
+          teamHref={teamPath(leagueKey, homeId)}
         />
       )}
     </div>

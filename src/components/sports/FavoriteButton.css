@@ -1,0 +1,20 @@
+.fav-btn {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+  color: #666688;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.fav-btn:hover {
+  color: #c0c0d0;
+  transform: scale(1.15);
+}
+
+.fav-btn--on,
+.fav-btn--on:hover {
+  color: #f5c542;
+}

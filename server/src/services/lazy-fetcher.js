@@ -1,4 +1,12 @@
-import { LEAGUES, GAME_ID_PATTERN, TEAM_ID_PATTERN, SCHEDULE_CACHE_TTL_SECONDS } from '../config.js'
+import {
+  LEAGUES,
+  GAME_ID_PATTERN,
+  TEAM_ID_PATTERN,
+  SCHEDULE_CACHE_TTL_SECONDS,
+  DATE_CACHE_TTL_SECONDS,
+  CACHE_TTL_SECONDS,
+} from '../config.js'
+import { isValidDate, isPastDate } from './dates.js'
 import { fetchScoreboard, fetchSummary, fetchTeamSchedule } from './espn-client.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
@@ -11,42 +19,57 @@ const LEAGUE_BY_KEY = new Map(LEAGUES.map((l) => [l.key, l]))
 // same promise instead of stampeding the upstream
 const inflight = new Map()
 
-async function fetchAndCache(cfg) {
-  const raw = await fetchScoreboard(cfg.sport, cfg.league, cfg.params ?? '')
+function scoreboardParams(cfg, date) {
+  const base = cfg.params ?? ''
+  if (!date) return base
+  const dates = `dates=${date.replaceAll('-', '')}`
+  return base ? `${base}&${dates}` : dates
+}
+
+async function fetchAndCache(cfg, date) {
+  const raw = await fetchScoreboard(cfg.sport, cfg.league, scoreboardParams(cfg, date))
   if (!raw) return null
   const data = {
     league: cfg.key,
     sport: cfg.sport,
     label: cfg.label,
+    ...(date ? { date } : {}),
     games: transformScoreboard(raw, cfg.key),
     fetchedAt: new Date().toISOString(),
   }
-  await cache.set(cfg.key, data)
+  if (date) {
+    await cache.set(`${cfg.key}@${date}`, data, isPastDate(date) ? DATE_CACHE_TTL_SECONDS : CACHE_TTL_SECONDS)
+  } else {
+    await cache.set(cfg.key, data)
+  }
   return data
 }
 
-export async function getLeague(key) {
+// Today's board when `date` is omitted; otherwise that calendar day's
+export async function getLeague(key, date) {
   const cfg = LEAGUE_BY_KEY.get(key)
   if (!cfg) return null
+  if (date !== undefined && !isValidDate(date)) return null
 
-  const cached = await cache.get(key)
+  const cacheKey = date ? `${key}@${date}` : key
+  const cached = await cache.get(cacheKey)
   if (cached) return cached
 
-  if (inflight.has(key)) return inflight.get(key)
+  if (inflight.has(cacheKey)) return inflight.get(cacheKey)
 
-  const pending = fetchAndCache(cfg)
+  const pending = fetchAndCache(cfg, date)
     .catch((err) => {
       console.error(`[lazy-fetcher] ${cfg.label} fetch failed:`, err.message)
       return null
     })
-    .finally(() => inflight.delete(key))
-  inflight.set(key, pending)
+    .finally(() => inflight.delete(cacheKey))
+  inflight.set(cacheKey, pending)
   return pending
 }
 
-export async function getAll() {
+export async function getAll(date) {
   const entries = await Promise.all(
-    LEAGUES.map(async (l) => [l.key, await getLeague(l.key)])
+    LEAGUES.map(async (l) => [l.key, await getLeague(l.key, date)])
   )
   return Object.fromEntries(entries)
 }

@@ -1,0 +1,41 @@
+.fav-section {
+  margin-bottom: 32px;
+}
+
+.fav-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.fav-chip {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(20, 20, 40, 0.85);
+  border: 1px solid rgba(245, 197, 66, 0.35);
+  border-radius: 16px;
+  padding: 0 6px 0 12px;
+}
+
+.fav-chip-link {
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-decoration: none;
+  padding: 6px 4px 6px 0;
+}
+
+.fav-chip-link:hover {
+  color: #ffffff;
+}
+
+.fav-chip-league {
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #8888aa;
+}

@@ -25,7 +25,7 @@ import { transformSchedule } from '../transformers/schedule-transformer.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
 import { getLeague, getAll, getBoxScore, getTeamSchedule } from './lazy-fetcher.js'
-import { LEAGUES } from '../config.js'
+import { LEAGUES, DATE_CACHE_TTL_SECONDS } from '../config.js'
 
 describe('lazy-fetcher', () => {
   beforeEach(() => {
@@ -111,6 +111,48 @@ describe('lazy-fetcher', () => {
     const all = await getAll()
     expect(Object.keys(all).sort()).toEqual(LEAGUES.map((l) => l.key).sort())
     expect(fetchScoreboard).toHaveBeenCalledTimes(LEAGUES.length)
+  })
+
+  describe('for a specific date', () => {
+    it("asks ESPN for that day, keeps the league's own params, and caches under a dated key", async () => {
+      cache.get.mockResolvedValue(null)
+      fetchScoreboard.mockResolvedValue({ events: [] })
+      transformScoreboard.mockReturnValue([{ id: 'g1' }])
+      const result = await getLeague('ncaaf', '2026-09-05')
+      expect(fetchScoreboard).toHaveBeenCalledWith('football', 'college-football', 'groups=80&limit=300&dates=20260905')
+      expect(cache.get).toHaveBeenCalledWith('ncaaf@2026-09-05')
+      expect(cache.set).toHaveBeenCalledWith('ncaaf@2026-09-05', expect.objectContaining({ league: 'ncaaf', date: '2026-09-05', games: [{ id: 'g1' }] }), expect.any(Number))
+      expect(result.date).toBe('2026-09-05')
+    })
+
+    it('caches past days for much longer than live scores', async () => {
+      cache.get.mockResolvedValue(null)
+      fetchScoreboard.mockResolvedValue({ events: [] })
+      transformScoreboard.mockReturnValue([])
+      await getLeague('nba', '2020-01-15')
+      const [, , pastTtl] = cache.set.mock.calls[0]
+      await getLeague('nba', '2999-01-15')
+      const [, , futureTtl] = cache.set.mock.calls[1]
+      expect(pastTtl).toBeGreaterThan(futureTtl)
+      expect(pastTtl).toBe(DATE_CACHE_TTL_SECONDS)
+    })
+
+    it('rejects malformed dates without fetching', async () => {
+      for (const bad of ['2026-9-5', '20260905', '2026-13-01', '2026-02-30', 'x', '2026-09-05; rm']) {
+        expect(await getLeague('nba', bad)).toBeNull()
+      }
+      expect(fetchScoreboard).not.toHaveBeenCalled()
+      expect(cache.get).not.toHaveBeenCalled()
+    })
+
+    it('getAll(date) fans the date out to every league', async () => {
+      cache.get.mockResolvedValue(null)
+      fetchScoreboard.mockResolvedValue({ events: [] })
+      transformScoreboard.mockReturnValue([])
+      await getAll('2026-09-05')
+      for (const call of fetchScoreboard.mock.calls) expect(call[2]).toContain('dates=20260905')
+      expect(fetchScoreboard).toHaveBeenCalledTimes(LEAGUES.length)
+    })
   })
 })
 

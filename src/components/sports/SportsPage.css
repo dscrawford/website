@@ -13,6 +13,28 @@
   padding: 80px 24px 40px;
 }
 
+.sports-content {
+  position: relative;
+}
+
+/* Calendar control: top-right of the board on desktop, a right-aligned
+   row above the title on phones where there is no spare width */
+.sports-date {
+  position: absolute;
+  top: 80px;
+  right: 24px;
+  z-index: 1;
+}
+
+@media (max-width: 900px) {
+  .sports-date {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+  }
+}
+
 .sports-title {
   text-align: center;
   font-size: 28px;

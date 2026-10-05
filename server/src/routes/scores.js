@@ -1,7 +1,21 @@
 import * as lazyFetcher from '../services/lazy-fetcher.js'
-import { LEAGUES, GAME_ID_PATTERN, HASH_ID_PATTERN, TEAM_ID_PATTERN } from '../config.js'
+import { isValidDate, isPastDate } from '../services/dates.js'
+import { LEAGUES, GAME_ID_PATTERN, HASH_ID_PATTERN, TEAM_ID_PATTERN, DATE_CACHE_TTL_SECONDS } from '../config.js'
 
 const VALID_KEYS = new Set(LEAGUES.map((l) => l.key))
+
+// Optional ?date=YYYY-MM-DD. Returns { date } (undefined when absent) or
+// { error } for anything that is not a real calendar day.
+function readDate(query) {
+  const date = query?.date
+  if (date === undefined || date === '') return { date: undefined }
+  if (!isValidDate(date)) return { error: 'Invalid date; use YYYY-MM-DD' }
+  return { date }
+}
+
+function dateCacheHeader(date) {
+  return date && isPastDate(date) ? `public, max-age=${DATE_CACHE_TTL_SECONDS}` : 'public, max-age=15'
+}
 
 export default async function scoresRoutes(fastify) {
   // Short-lived pre-serialized snapshot: bursts of requests reuse one
@@ -9,8 +23,21 @@ export default async function scoresRoutes(fastify) {
   let snapshot = { body: null, at: 0 }
 
   fastify.get('/api/scores', async (request, reply) => {
-    reply.header('Cache-Control', 'public, max-age=15')
     reply.header('X-Content-Type-Options', 'nosniff')
+    const { date, error } = readDate(request.query)
+    if (error) {
+      reply.code(400)
+      return { success: false, data: null, error }
+    }
+    if (date) {
+      reply.header('Cache-Control', dateCacheHeader(date))
+      return {
+        success: true,
+        data: { date, leagues: await lazyFetcher.getAll(date) },
+        error: null,
+      }
+    }
+    reply.header('Cache-Control', 'public, max-age=15')
     reply.type('application/json')
     if (snapshot.body && Date.now() - snapshot.at < 5000) {
       return snapshot.body
@@ -35,8 +62,14 @@ export default async function scoresRoutes(fastify) {
         error: `Unknown league. Valid: ${[...VALID_KEYS].join(', ')}`,
       }
     }
+    const { date, error } = readDate(request.query)
+    if (error) {
+      reply.code(400).header('X-Content-Type-Options', 'nosniff')
+      return { success: false, data: null, error }
+    }
+    if (date) reply.header('Cache-Control', dateCacheHeader(date))
 
-    const data = await lazyFetcher.getLeague(league)
+    const data = date ? await lazyFetcher.getLeague(league, date) : await lazyFetcher.getLeague(league)
     if (!data) {
       return {
         success: true,

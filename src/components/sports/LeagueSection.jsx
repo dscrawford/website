@@ -11,7 +11,7 @@ function LeagueSection({ id, label, games, navigate }) {
       ) : (
         <div className="league-grid">
           {games.map((game) => (
-            <GameCard key={game.id} game={game} navigate={navigate} />
+            <GameCard key={game.id} game={game} navigate={navigate} leagueKey={id} />
           ))}
         </div>
       )}

@@ -1,0 +1,46 @@
+.team-page {
+  max-width: 720px;
+}
+
+.team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.team-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffffff;
+}
+
+.team-abbr {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8888aa;
+}
+
+.team-season-record {
+  font-size: 14px;
+  font-weight: 600;
+  color: #c0c0d0;
+}
+
+.team-fav {
+  font-size: 24px;
+}
+
+@media (max-width: 480px) {
+  .team-title {
+    font-size: 18px;
+  }
+}

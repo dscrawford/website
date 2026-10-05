@@ -44,6 +44,38 @@ describe('GET /api/scores', () => {
     await app.inject({ method: 'GET', url: '/api/scores' })
     expect(lazyFetcher.getAll).toHaveBeenCalledTimes(1)
   })
+
+  it('?date= fetches that day, bypasses the live snapshot, and echoes the date', async () => {
+    lazyFetcher.getAll.mockResolvedValue({ nfl: { games: [] } })
+    const app = await buildApp()
+    await app.inject({ method: 'GET', url: '/api/scores' })
+    const res = await app.inject({ method: 'GET', url: '/api/scores?date=2026-09-05' })
+    expect(res.statusCode).toBe(200)
+    expect(lazyFetcher.getAll).toHaveBeenLastCalledWith('2026-09-05')
+    expect(res.json()).toEqual({ success: true, data: { date: '2026-09-05', leagues: { nfl: { games: [] } } }, error: null })
+    const again = await app.inject({ method: 'GET', url: '/api/scores?date=2026-09-06' })
+    expect(again.json().data.date).toBe('2026-09-06')
+    expect(lazyFetcher.getAll).toHaveBeenCalledTimes(3)
+  })
+
+  it('lets browsers hold a past day far longer than the live board', async () => {
+    lazyFetcher.getAll.mockResolvedValue({})
+    const app = await buildApp()
+    const past = await app.inject({ method: 'GET', url: '/api/scores?date=2020-01-15' })
+    const live = await app.inject({ method: 'GET', url: '/api/scores' })
+    const maxAge = (r) => Number(r.headers['cache-control'].match(/max-age=(\d+)/)[1])
+    expect(maxAge(past)).toBeGreaterThan(maxAge(live))
+  })
+
+  it('400s a malformed date without fetching or echoing it', async () => {
+    const app = await buildApp()
+    for (const bad of ['2026-9-5', 'tomorrow', '2026-02-30', '<script>']) {
+      const res = await app.inject({ method: 'GET', url: `/api/scores?date=${encodeURIComponent(bad)}` })
+      expect(res.statusCode).toBe(400)
+      expect(res.body).not.toContain('script')
+    }
+    expect(lazyFetcher.getAll).not.toHaveBeenCalled()
+  })
 })
 
 describe('GET /api/scores/:league', () => {
@@ -105,6 +137,16 @@ describe('GET /api/scores/:league', () => {
     const res = await app.inject({ method: 'GET', url: `/api/scores/${league}` })
     expect(res.statusCode).toBe(200)
     expect(lazyFetcher.getLeague).toHaveBeenCalledWith(league)
+  })
+
+  it('?date= passes through to the league fetch', async () => {
+    lazyFetcher.getLeague.mockResolvedValue({ league: 'mlb', date: '2026-09-04', games: [] })
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/mlb?date=2026-09-04' })
+    expect(res.statusCode).toBe(200)
+    expect(lazyFetcher.getLeague).toHaveBeenCalledWith('mlb', '2026-09-04')
+    const bad = await app.inject({ method: 'GET', url: '/api/scores/mlb?date=nope' })
+    expect(bad.statusCode).toBe(400)
   })
 
   it('an unexpected cache rejection surfaces as a 500 (documents current contract)', async () => {

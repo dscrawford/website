@@ -1,0 +1,68 @@
+.date-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.date-step,
+.date-current,
+.date-today {
+  background: rgba(20, 20, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #c0c0d0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.date-step:hover,
+.date-current:hover,
+.date-today:hover {
+  background: rgba(40, 40, 60, 0.9);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.date-step {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.date-current {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.date-icon {
+  margin-right: 6px;
+}
+
+.date-today {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* The native control stays in the tree (so showPicker/focus work and the
+   popup anchors here) but out of sight */
+.date-native {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

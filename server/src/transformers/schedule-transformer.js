@@ -16,6 +16,15 @@ function isTeam(competitor, teamId) {
   return str(competitor?.team?.id, 16) === teamId || str(competitor?.id, 16) === teamId
 }
 
+// Year-to-date record ESPN attaches to each competitor, as of that game.
+// Schedules send record: [{ type, displayValue }]; scoreboards send
+// records: [{ summary }]. Prefer the overall ('total') entry.
+function espnRecord(competitor) {
+  const entries = [competitor?.record, competitor?.records].find(Array.isArray) || []
+  const entry = entries.find((r) => r?.type === 'total') || entries[0]
+  return str(entry?.displayValue, 24) || str(entry?.summary, 24) || null
+}
+
 function result(us, them, teamScore, opponentScore) {
   if (us.winner === true) return 'W'
   if (them.winner === true) return 'L'
@@ -54,6 +63,26 @@ function transformEvent(event, teamId) {
     result: completed ? result(us, them, teamScore, opponentScore) : null,
     state,
     detail: str(statusType.shortDetail, 32) || str(statusType.detail, 32) || '',
+    record: completed ? espnRecord(us) : null,
+    opponentRecord: completed ? espnRecord(them) : null,
+  })
+}
+
+// Record after each completed game, counted from the results in date
+// order; fills in when ESPN omits its own year-to-date record. Ties only
+// appear once there has been one (W-L, or W-L-T), matching ESPN's format.
+function withRunningRecords(games) {
+  let wins = 0
+  let losses = 0
+  let ties = 0
+  return games.map((game) => {
+    if (!game.result) return game
+    if (game.result === 'W') wins += 1
+    else if (game.result === 'L') losses += 1
+    else ties += 1
+    if (game.record) return game
+    const record = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`
+    return Object.freeze({ ...game, record })
   })
 }
 
@@ -71,7 +100,7 @@ function sortByDate(games) {
 export function transformSchedule(raw, teamId) {
   const events = Array.isArray(raw?.events) ? raw.events : []
   const team = raw?.team || {}
-  const games = sortByDate(
+  const games = withRunningRecords(sortByDate(
     events
       .slice(0, MAX_EVENTS)
       .map((event) => {
@@ -83,7 +112,7 @@ export function transformSchedule(raw, teamId) {
         }
       })
       .filter(Boolean)
-  )
+  ))
   return Object.freeze({
     teamId,
     team: Object.freeze({

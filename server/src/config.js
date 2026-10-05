@@ -23,6 +23,11 @@ export const POLL_STAGGER_MS = 2_000
 export const CACHE_TTL_SECONDS = 60
 // Season schedules change at most a few times a day
 export const SCHEDULE_CACHE_TTL_SECONDS = 300
+// A finished day's scoreboard never changes; the same fetch is reused for
+// a browsing session rather than every minute
+export const DATE_CACHE_TTL_SECONDS = 6 * 60 * 60
+// Calendar dates from the ?date= query: ISO day only
+export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 export const CACHE_KEY_PREFIX = 'scores'
 
 export const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379'

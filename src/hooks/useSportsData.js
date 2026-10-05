@@ -4,7 +4,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 // faster only re-fetches identical cached data
 const POLL_INTERVAL_MS = 45_000
 
-export default function useSportsData() {
+// Today's live board when `date` is omitted, otherwise that calendar day
+// (YYYY-MM-DD). Past days never change, so only the live board polls.
+export default function useSportsData(date) {
   const [leagues, setLeagues] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -17,7 +19,8 @@ export default function useSportsData() {
     abortRef.current = controller
 
     try {
-      const res = await fetch('/api/scores', { signal: controller.signal })
+      const url = date ? `/api/scores?date=${encodeURIComponent(date)}` : '/api/scores'
+      const res = await fetch(url, { signal: controller.signal })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const json = await res.json()
@@ -39,17 +42,19 @@ export default function useSportsData() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [date])
 
   useEffect(() => {
+    setLeagues(null)
+    setLoading(true)
     fetchScores()
-    const timer = setInterval(fetchScores, POLL_INTERVAL_MS)
+    const timer = date ? null : setInterval(fetchScores, POLL_INTERVAL_MS)
 
     return () => {
-      clearInterval(timer)
+      if (timer) clearInterval(timer)
       abortRef.current?.abort()
     }
-  }, [fetchScores])
+  }, [fetchScores, date])
 
   return { leagues, loading, error, lastUpdated, refetch: fetchScores }
 }

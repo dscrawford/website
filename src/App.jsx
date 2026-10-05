@@ -6,6 +6,7 @@ import TetrisBackground from './components/TetrisBackground.jsx'
 import TetrisSidebar from './components/TetrisSidebar.jsx'
 import SportsPage from './components/sports/SportsPage.jsx'
 import GameBoxScorePage from './components/sports/GameBoxScorePage.jsx'
+import TeamPage from './components/sports/TeamPage.jsx'
 import SportsErrorBoundary from './components/sports/SportsErrorBoundary.jsx'
 import './App.css'
 
@@ -172,12 +173,21 @@ function HomePage({ navigate }) {
 }
 
 function App() {
-  const { pathname, navigate } = useRoute()
+  const { pathname, search, navigate } = useRoute()
 
   if (pathname === '/sports') {
     return (
       <SportsErrorBoundary>
-        <SportsPage navigate={navigate} />
+        <SportsPage navigate={navigate} search={search} />
+      </SportsErrorBoundary>
+    )
+  }
+
+  const teamMatch = pathname.match(/^\/sports\/teams\/([a-z]{2,8})\/(\d{1,10})\/?$/)
+  if (teamMatch) {
+    return (
+      <SportsErrorBoundary>
+        <TeamPage navigate={navigate} leagueKey={teamMatch[1]} teamId={teamMatch[2]} />
       </SportsErrorBoundary>
     )
   }
@@ -186,7 +196,7 @@ function App() {
   if (gameMatch) {
     return (
       <SportsErrorBoundary>
-        <GameBoxScorePage navigate={navigate} gameId={gameMatch[1]} />
+        <GameBoxScorePage navigate={navigate} gameId={gameMatch[1]} search={search} />
       </SportsErrorBoundary>
     )
   }

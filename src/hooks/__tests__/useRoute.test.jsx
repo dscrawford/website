@@ -42,4 +42,15 @@ describe('useRoute', () => {
     expect(removeSpy).toHaveBeenCalledWith('popstate', expect.any(Function))
     removeSpy.mockRestore()
   })
+
+  it('exposes the query string and navigates to paths that carry one', () => {
+    setPath('/sports?date=2026-09-04')
+    const { result } = renderHook(() => useRoute())
+    expect(result.current.search).toBe('?date=2026-09-04')
+    act(() => result.current.navigate('/sports?date=2026-09-05'))
+    expect(window.location.search).toBe('?date=2026-09-05')
+    expect(result.current.search).toBe('?date=2026-09-05')
+    act(() => result.current.navigate('/sports'))
+    expect(result.current.search).toBe('')
+  })
 })

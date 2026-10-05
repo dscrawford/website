@@ -75,6 +75,26 @@ describe('TeamSchedule', () => {
     expect(container.querySelector('.sched-record')).toBeNull()
   })
 
+  it('shows both teams\' records as of each game: the opponent\'s beside its name, ours beside the result', () => {
+    const withRecords = {
+      ...SCHEDULE,
+      games: [
+        game('1', '2026-03-27T02:10Z', { record: '1-0', opponentRecord: '0-1' }),
+        game('2', '2026-03-28T02:10Z', { home: false, teamScore: 3, opponentScore: 5, result: 'L', record: '1-1', opponentRecord: '2-0' }),
+        game('6', '2026-04-01T02:10Z', { teamScore: null, opponentScore: null, result: null, state: 'pre', detail: '4/1 - 7:10 PM', record: null, opponentRecord: null }),
+      ],
+    }
+    render(<TeamSchedule schedule={withRecords} loading={false} error={false} onRetry={noop} currentGameId="6" />)
+    const rows = screen.getAllByRole('listitem')
+    expect(within(rows[0]).getByText('vs SEA')).toBeTruthy()
+    expect(within(rows[0]).getByText('0-1').className).toBe('sched-opp-record')
+    expect(within(rows[0]).getByText('1-0').className).toBe('sched-row-record')
+    expect(within(rows[1]).getByText('2-0').className).toBe('sched-opp-record')
+    expect(within(rows[1]).getByText('1-1').className).toBe('sched-row-record')
+    expect(rows[2].querySelector('.sched-opp-record')).toBeNull()
+    expect(rows[2].querySelector('.sched-row-record')).toBeNull()
+  })
+
   it('reads "vs" for neutral-site games even when the team is listed as away', () => {
     const neutral = { ...SCHEDULE, games: [game('n', '2026-10-10T16:30Z', { home: false, neutral: true, opponent: { abbreviation: 'TEX', name: 'Texas' } })] }
     render(<TeamSchedule schedule={neutral} loading={false} error={false} onRetry={noop} currentGameId="n" />)

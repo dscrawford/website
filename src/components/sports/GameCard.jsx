@@ -1,10 +1,11 @@
 import TeamRow from './TeamRow.jsx'
 import StatusBadge from './StatusBadge.jsx'
 import BroadcastBadge from './BroadcastBadge.jsx'
+import { teamPath } from './leagues.js'
 import './GameCard.css'
 import { memo } from 'react'
 
-function GameCard({ game, navigate }) {
+function GameCard({ game, navigate, leagueKey }) {
   if (!game) return null
 
   const { id, homeTeam, awayTeam, status, broadcasts, startTime } = game
@@ -15,8 +16,8 @@ function GameCard({ game, navigate }) {
   return (
     <div className="game-card">
       <div className="game-teams">
-        <TeamRow team={awayTeam} isWinning={awayWinning} />
-        <TeamRow team={homeTeam} isWinning={homeWinning} />
+        <TeamRow team={awayTeam} isWinning={awayWinning} navigate={navigate} href={leagueKey && awayTeam.id ? teamPath(leagueKey, awayTeam.id) : undefined} />
+        <TeamRow team={homeTeam} isWinning={homeWinning} navigate={navigate} href={leagueKey && homeTeam.id ? teamPath(leagueKey, homeTeam.id) : undefined} />
       </div>
       <div className="game-footer">
         <StatusBadge status={status} startTime={startTime} />

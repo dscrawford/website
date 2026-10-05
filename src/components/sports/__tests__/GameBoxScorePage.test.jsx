@@ -51,7 +51,7 @@ function mockEndpoints({ leagues, box } = {}) {
         json: async () => ({ success: true, data: box ?? BOX, error: null }),
       })
     }
-    if (String(url) === '/api/scores') {
+    if (String(url) === '/api/scores' || String(url).startsWith('/api/scores?date=')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({
@@ -141,5 +141,26 @@ describe('GameBoxScorePage', () => {
     render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
     expect(await screen.findByText('CIN vs CHC')).toBeTruthy()
     expect(document.querySelector('.game-page-stadium')).toBeNull()
+  })
+
+  it("looks a past game up on its own day's board and links back to that day", async () => {
+    mockEndpoints()
+    const navigate = vi.fn()
+    render(<GameBoxScorePage navigate={navigate} gameId="401" search="?league=mlb&date=2026-08-28" />)
+    await waitFor(() => expect(screen.getByText('CHC')).toBeTruthy())
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores?date=2026-08-28', expect.anything())
+    expect(globalThis.fetch).not.toHaveBeenCalledWith('/api/scores', expect.anything())
+    const back = screen.getByRole('link', { name: /scoreboard/i })
+    expect(back.getAttribute('href')).toBe('/sports?date=2026-08-28')
+  })
+
+  it('links both header teams to their team pages', async () => {
+    mockEndpoints()
+    const navigate = vi.fn()
+    render(<GameBoxScorePage navigate={navigate} gameId="401" />)
+    const chc = await screen.findByRole('link', { name: 'CHC' })
+    expect(chc.getAttribute('href')).toBe('/sports/teams/mlb/16')
+    fireEvent.click(chc)
+    expect(navigate).toHaveBeenCalledWith('/sports/teams/mlb/16')
   })
 })
