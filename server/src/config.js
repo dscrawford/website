@@ -26,6 +26,10 @@ export const SCHEDULE_CACHE_TTL_SECONDS = 300
 // A finished day's scoreboard never changes; the same fetch is reused for
 // a browsing session rather than every minute
 export const DATE_CACHE_TTL_SECONDS = 6 * 60 * 60
+// ?season= on team schedules: a four-digit year, from ESPN's earliest
+// box scores up to next season
+export const SEASON_PATTERN = /^\d{4}$/
+export const MIN_SEASON = 2000
 // Calendar dates from the ?date= query: ISO day only
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 export const CACHE_KEY_PREFIX = 'scores'

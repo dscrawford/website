@@ -262,6 +262,24 @@ describe('getTeamSchedule', () => {
     expect(result.games).toEqual([{ id: 'g' }])
   })
 
+  it('fetches a past season under its own key, for far longer, and tells the transformer which year', async () => {
+    cache.get.mockResolvedValue(null)
+    fetchTeamSchedule.mockResolvedValue({ events: [] })
+    transformSchedule.mockReturnValue({ teamId: '5', games: [] })
+    await getTeamSchedule('nfl', '12', '2024')
+    expect(fetchTeamSchedule).toHaveBeenCalledWith('football', 'nfl', '12', '2024')
+    expect(cache.get).toHaveBeenCalledWith('sched:nfl:12@2024')
+    expect(transformSchedule).toHaveBeenCalledWith({ events: [] }, '12', '2024')
+    expect(cache.set).toHaveBeenCalledWith('sched:nfl:12@2024', expect.any(Object), DATE_CACHE_TTL_SECONDS)
+  })
+
+  it('rejects seasons that are not a plausible year without fetching', async () => {
+    for (const bad of ['24', '20240', '1899', String(new Date().getFullYear() + 2), 'abcd', '2024; drop']) {
+      expect(await getTeamSchedule('nfl', '12', bad)).toBeNull()
+    }
+    expect(fetchTeamSchedule).not.toHaveBeenCalled()
+  })
+
   it('dedups concurrent misses for the same team', async () => {
     cache.get.mockResolvedValue(null)
     let release

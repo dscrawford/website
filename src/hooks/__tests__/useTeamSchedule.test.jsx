@@ -92,4 +92,12 @@ describe('useTeamSchedule', () => {
     })
     expect(result.current.schedule?.teamId).toBe('6')
   })
+
+  it('asks for a specific season and refetches when it changes', async () => {
+    globalThis.fetch.mockResolvedValue(okResponse())
+    const { rerender } = renderHook(({ season }) => useTeamSchedule('mlb', '5', season), { initialProps: { season: '2024' } })
+    expect(globalThis.fetch).toHaveBeenLastCalledWith('/api/scores/mlb/teams/5/schedule?season=2024', expect.anything())
+    rerender({ season: undefined })
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenLastCalledWith('/api/scores/mlb/teams/5/schedule', expect.anything()))
+  })
 })

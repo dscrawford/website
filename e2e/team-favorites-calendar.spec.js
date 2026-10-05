@@ -46,6 +46,29 @@ test.beforeEach(async ({ page }) => {
   })
   await page.route('**/api/scores/mlb/games/*', (route) => route.fulfill(envelope({ gameId: '401', teams: [], fetchedAt: null })))
   await page.route('**/api/scores/mlb/teams/*/schedule', (route) => route.fulfill(envelope(SCHEDULE)))
+  await page.route('**/api/scores/mlb/teams/*/schedule?season=2024', (route) =>
+    route.fulfill(
+      envelope({
+        ...SCHEDULE,
+        season: '2024',
+        seasonYear: 2024,
+        team: { ...SCHEDULE.team, record: '92-70' },
+        games: [{ ...SCHEDULE.games[0], id: '201', date: '2024-10-01T20:00:00Z', record: '92-70', opponentRecord: '85-77' }],
+      })
+    )
+  )
+})
+
+test('the team page can show a past season, whose games open their box scores by date', async ({ page }) => {
+  await page.goto('/sports/teams/mlb/5')
+  await expect(page.locator('.team-season-record')).toHaveText('71-70')
+  await page.getByRole('combobox', { name: 'Season' }).selectOption('2024')
+  await expect(page).toHaveURL(/\/sports\/teams\/mlb\/5\?season=2024$/)
+  await expect(page.locator('.team-season-record')).toHaveText('92-70')
+  await expect(page.locator('.sched-row')).toHaveCount(1)
+  await expect(page.locator('.sched-row a')).toHaveAttribute('href', '/sports/201?league=mlb&date=2024-10-01')
+  await page.reload()
+  await expect(page.getByRole('combobox', { name: 'Season' })).toHaveValue('2024')
 })
 
 test('a team name on the scoreboard opens its season page, and each game there opens its box score', async ({ page }) => {

@@ -187,7 +187,7 @@ function App() {
   if (teamMatch) {
     return (
       <SportsErrorBoundary>
-        <TeamPage navigate={navigate} leagueKey={teamMatch[1]} teamId={teamMatch[2]} />
+        <TeamPage navigate={navigate} leagueKey={teamMatch[1]} teamId={teamMatch[2]} search={search} />
       </SportsErrorBoundary>
     )
   }

@@ -233,6 +233,20 @@ describe('GET /api/scores/:league/teams/:teamId/schedule', () => {
     expect(lazyFetcher.getTeamSchedule).toHaveBeenCalledWith('mlb', '5')
   })
 
+  it('?season= selects a past year and 400s anything that is not a year', async () => {
+    lazyFetcher.getTeamSchedule.mockResolvedValue({ teamId: '5', games: [], fetchedAt: 'x' })
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/mlb/teams/5/schedule?season=2024' })
+    expect(res.statusCode).toBe(200)
+    expect(lazyFetcher.getTeamSchedule).toHaveBeenCalledWith('mlb', '5', '2024')
+    for (const bad of ['24', 'last', '1800', '<x>']) {
+      const r = await app.inject({ method: 'GET', url: `/api/scores/mlb/teams/5/schedule?season=${encodeURIComponent(bad)}` })
+      expect(r.statusCode).toBe(400)
+      expect(r.body).not.toContain('<x>')
+    }
+    expect(lazyFetcher.getTeamSchedule).toHaveBeenCalledTimes(1)
+  })
+
   it('404s unknown leagues without fetching', async () => {
     const app = await buildApp()
     const res = await app.inject({ method: 'GET', url: '/api/scores/cricket/teams/5/schedule' })

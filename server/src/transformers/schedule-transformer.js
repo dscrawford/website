@@ -97,9 +97,23 @@ function sortByDate(games) {
     .map(({ game }) => game)
 }
 
-export function transformSchedule(raw, teamId) {
+// `requestedSeason` is the year asked for; ESPN labels the payload with it
+// while `season`/`recordSummary` always describe the current season
+function lastRecord(games) {
+  for (let i = games.length - 1; i >= 0; i--) {
+    if (games[i].record) return games[i].record
+  }
+  return null
+}
+
+export function transformSchedule(raw, teamId, requestedSeason) {
   const events = Array.isArray(raw?.events) ? raw.events : []
   const team = raw?.team || {}
+  const served = raw?.requestedSeason || {}
+  const current = raw?.season || {}
+  const seasonYear = Number.parseInt(served.year ?? requestedSeason ?? current.year, 10)
+  const seasonLabel = str(served.displayName, 16) || str(requestedSeason, 16) || str(current.displayName, 16) || str(current.year, 16)
+  const isCurrent = !Number.isFinite(seasonYear) || !Number.isFinite(Number.parseInt(current.year, 10)) || seasonYear >= Number.parseInt(current.year, 10)
   const games = withRunningRecords(sortByDate(
     events
       .slice(0, MAX_EVENTS)
@@ -118,10 +132,13 @@ export function transformSchedule(raw, teamId) {
     team: Object.freeze({
       abbreviation: str(team.abbreviation, 8) || '???',
       name: str(team.displayName) || str(team.name) || 'Unknown',
-      // Already formatted per sport by ESPN (W-L, or W-L-T when ties exist)
-      record: str(team.recordSummary, 24) || null,
+      // Already formatted per sport by ESPN (W-L, or W-L-T when ties exist).
+      // For a past season ESPN still sends the live record, so the final
+      // record is the one after that season's last completed game.
+      record: isCurrent ? str(team.recordSummary, 24) || null : lastRecord(games),
     }),
-    season: str(raw?.season?.displayName, 16) || str(raw?.season?.year, 16),
+    season: seasonLabel,
+    seasonYear: Number.isFinite(seasonYear) ? seasonYear : null,
     games: Object.freeze(games),
   })
 }

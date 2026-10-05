@@ -110,7 +110,7 @@ function TeamSchedule({ schedule, loading, error, onRetry, currentGameId, record
       {games.length > 0 && (
         <ol ref={listRef} className="sched-list">
           {games.map((game, i) => (
-            <ScheduleRow key={game.id ?? i} game={game} current={i === focused} leagueKey={leagueKey} navigate={navigate} />
+            <ScheduleRow key={game.id ?? i} game={game} current={!full && i === focused} leagueKey={leagueKey} navigate={navigate} />
           ))}
         </ol>
       )}

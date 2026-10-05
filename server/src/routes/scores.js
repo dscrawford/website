@@ -1,5 +1,5 @@
 import * as lazyFetcher from '../services/lazy-fetcher.js'
-import { isValidDate, isPastDate } from '../services/dates.js'
+import { isValidDate, isPastDate, isValidSeason, isPastSeason } from '../services/dates.js'
 import { LEAGUES, GAME_ID_PATTERN, HASH_ID_PATTERN, TEAM_ID_PATTERN, DATE_CACHE_TTL_SECONDS } from '../config.js'
 
 const VALID_KEYS = new Set(LEAGUES.map((l) => l.key))
@@ -138,8 +138,15 @@ export default async function scoresRoutes(fastify) {
       reply.code(400)
       return { success: false, data: null, error: 'Invalid team id' }
     }
+    const season = request.query?.season
+    if (season !== undefined && season !== '' && !isValidSeason(season)) {
+      reply.code(400)
+      return { success: false, data: null, error: 'Invalid season; use a four-digit year' }
+    }
 
-    const data = await lazyFetcher.getTeamSchedule(league, teamId)
+    const data = season
+      ? await lazyFetcher.getTeamSchedule(league, teamId, season)
+      : await lazyFetcher.getTeamSchedule(league, teamId)
     if (!data) {
       reply.header('Cache-Control', 'no-store')
       return {
@@ -148,7 +155,8 @@ export default async function scoresRoutes(fastify) {
         error: null,
       }
     }
-    reply.header('Cache-Control', 'public, max-age=300')
+    const maxAge = season && isPastSeason(season) ? DATE_CACHE_TTL_SECONDS : 300
+    reply.header('Cache-Control', `public, max-age=${maxAge}`)
     return { success: true, data, error: null }
   })
 }

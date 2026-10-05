@@ -6,7 +6,7 @@ import {
   DATE_CACHE_TTL_SECONDS,
   CACHE_TTL_SECONDS,
 } from '../config.js'
-import { isValidDate, isPastDate } from './dates.js'
+import { isValidDate, isPastDate, isValidSeason, isPastSeason } from './dates.js'
 import { fetchScoreboard, fetchSummary, fetchTeamSchedule } from './espn-client.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
@@ -106,26 +106,31 @@ export async function getBoxScore(leagueKey, gameId) {
   return pending
 }
 
-export async function getTeamSchedule(leagueKey, teamId) {
+// The current season when `season` is omitted, otherwise that year's
+export async function getTeamSchedule(leagueKey, teamId, season) {
   const cfg = LEAGUE_BY_KEY.get(leagueKey)
   if (!cfg || typeof teamId !== 'string' || !TEAM_ID_PATTERN.test(teamId)) {
     return null
   }
+  if (season !== undefined && !isValidSeason(season)) return null
 
-  const cacheKey = `sched:${leagueKey}:${teamId}`
+  const cacheKey = season ? `sched:${leagueKey}:${teamId}@${season}` : `sched:${leagueKey}:${teamId}`
   const cached = await cache.get(cacheKey)
   if (cached) return cached
 
   if (inflight.has(cacheKey)) return inflight.get(cacheKey)
 
   const pending = (async () => {
-    const raw = await fetchTeamSchedule(cfg.sport, cfg.league, teamId)
+    const raw = season
+      ? await fetchTeamSchedule(cfg.sport, cfg.league, teamId, season)
+      : await fetchTeamSchedule(cfg.sport, cfg.league, teamId)
     if (!raw) return null
     const data = {
-      ...transformSchedule(raw, teamId),
+      ...(season ? transformSchedule(raw, teamId, season) : transformSchedule(raw, teamId)),
       fetchedAt: new Date().toISOString(),
     }
-    await cache.set(cacheKey, data, SCHEDULE_CACHE_TTL_SECONDS)
+    const ttl = season && isPastSeason(season) ? DATE_CACHE_TTL_SECONDS : SCHEDULE_CACHE_TTL_SECONDS
+    await cache.set(cacheKey, data, ttl)
     return data
   })()
     .catch((err) => {

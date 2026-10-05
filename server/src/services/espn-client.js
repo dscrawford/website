@@ -17,10 +17,12 @@ export async function fetchSummary(sport, league, eventId) {
   )
 }
 
-// Full season schedule for one team; teamId must be pre-validated
-export async function fetchTeamSchedule(sport, league, teamId) {
+// Full season schedule for one team; teamId and season must be
+// pre-validated. No season means the current one.
+export async function fetchTeamSchedule(sport, league, teamId, season) {
+  const query = season ? `?season=${season}` : ''
   return fetchJson(
-    `${ESPN_BASE_URL}/${sport}/${league}/teams/${teamId}/schedule`,
+    `${ESPN_BASE_URL}/${sport}/${league}/teams/${teamId}/schedule${query}`,
     `${league} schedule`
   )
 }

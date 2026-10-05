@@ -35,11 +35,55 @@
   color: #c0c0d0;
 }
 
+.team-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.team-season {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-season-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #8888aa;
+  text-transform: uppercase;
+}
+
+.team-season-select {
+  height: 32px;
+  padding: 0 8px;
+  background: rgba(20, 20, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.team-season-select:focus {
+  outline: none;
+  border-color: rgba(120, 160, 255, 0.5);
+}
+
 .team-fav {
   font-size: 24px;
 }
 
 @media (max-width: 480px) {
+  .team-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .team-title {
     font-size: 18px;
   }

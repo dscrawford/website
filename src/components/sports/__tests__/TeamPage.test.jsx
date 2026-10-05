@@ -22,6 +22,10 @@ describe('TeamPage', () => {
       if (String(url) === '/api/scores/mlb/teams/5/schedule') {
         return Promise.resolve({ ok: true, json: async () => ({ success: true, data: SCHEDULE, error: null }) })
       }
+      if (String(url) === '/api/scores/mlb/teams/5/schedule?season=2024') {
+        const past = { ...SCHEDULE, season: '2024', seasonYear: 2024, team: { ...SCHEDULE.team, record: '9-8' }, games: [{ ...SCHEDULE.games[0], id: '301', date: '2024-09-06T00:00Z', record: '1-0' }] }
+        return Promise.resolve({ ok: true, json: async () => ({ success: true, data: past, error: null }) })
+      }
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) })
     })
     HTMLElement.prototype.scrollTo = vi.fn()
@@ -63,5 +67,24 @@ describe('TeamPage', () => {
     rerender(<TeamPage navigate={navigate} leagueKey="cricket" teamId="5" />)
     expect(screen.getByText(/unknown league/i)).toBeTruthy()
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers past seasons; picking one goes into the URL and the page shows that year', async () => {
+    const navigate = vi.fn()
+    render(<TeamPage navigate={navigate} leagueKey="mlb" teamId="5" />)
+    const select = await screen.findByRole('combobox', { name: /season/i })
+    const years = Array.from(select.options).map((o) => o.value)
+    expect(years[0]).toBe(String(new Date().getFullYear()))
+    expect(years.length).toBeGreaterThanOrEqual(10)
+    fireEvent.change(select, { target: { value: '2024' } })
+    expect(navigate).toHaveBeenCalledWith('/sports/teams/mlb/5?season=2024')
+  })
+
+  it('reads ?season= from the URL and shows that season, its record, and its games', async () => {
+    render(<TeamPage navigate={vi.fn()} leagueKey="mlb" teamId="5" search="?season=2024" />)
+    await waitFor(() => expect(document.querySelector('.team-season-record').textContent).toBe('9-8'))
+    expect(screen.getByRole('combobox', { name: /season/i }).value).toBe('2024')
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/5/schedule?season=2024', expect.anything())
+    expect(screen.getByRole('link', { name: /DET/ }).getAttribute('href')).toBe('/sports/301?league=mlb&date=2024-09-05')
   })
 })

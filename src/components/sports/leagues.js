@@ -26,3 +26,16 @@ export function isValidDay(value) {
   const d = new Date(`${value}T00:00:00Z`)
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value
 }
+
+// Seasons a team page can show: this year back through ESPN's reliable
+// box-score history
+export const SEASON_SPAN = 12
+
+export function seasonOptions(now = new Date()) {
+  const current = now.getFullYear()
+  return Array.from({ length: SEASON_SPAN }, (_, i) => String(current - i))
+}
+
+export function isValidSeason(value, now = new Date()) {
+  return typeof value === 'string' && /^\d{4}$/.test(value) && seasonOptions(now).includes(value)
+}
