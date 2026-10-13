@@ -16,8 +16,9 @@ const ScheduleRow = memo(function ScheduleRow({ game, current, leagueKey, naviga
     <>
       <span className="sched-date">{formatDate(game.date)}</span>
       <span className="sched-opp">
+        {game.home || game.neutral ? 'vs' : '@'}{' '}
         {game.opponent.logo && <img className="sched-logo" src={game.opponent.logo} alt="" loading="lazy" width="16" height="16" />}
-        {game.home || game.neutral ? 'vs' : '@'} {game.opponent.abbreviation}
+        {game.opponent.abbreviation}
         {game.opponentRecord && <span className="sched-opp-record">{game.opponentRecord}</span>}
       </span>
       <span className="sched-score">
