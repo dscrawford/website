@@ -13,6 +13,14 @@
   margin-bottom: 6px;
 }
 
+.sched-logo {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  object-fit: contain;
+}
+
 .sched-team {
   font-size: 12px;
   font-weight: 700;

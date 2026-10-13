@@ -16,6 +16,7 @@ const ScheduleRow = memo(function ScheduleRow({ game, current, leagueKey, naviga
     <>
       <span className="sched-date">{formatDate(game.date)}</span>
       <span className="sched-opp">
+        {game.opponent.logo && <img className="sched-logo" src={game.opponent.logo} alt="" loading="lazy" width="16" height="16" />}
         {game.home || game.neutral ? 'vs' : '@'} {game.opponent.abbreviation}
         {game.opponentRecord && <span className="sched-opp-record">{game.opponentRecord}</span>}
       </span>
@@ -51,8 +52,9 @@ const ScheduleRow = memo(function ScheduleRow({ game, current, leagueKey, naviga
 })
 
 // `full` lists the whole season instead of a six-row scroller; `teamHref`
-// links the header to the team's page
-function TeamSchedule({ schedule, loading, error, onRetry, currentGameId, record, leagueKey, navigate, full = false, teamHref }) {
+// links the header to the team's page; `team` is the scoreboard's copy of
+// the team so the header can show it before (or without) the schedule
+function TeamSchedule({ schedule, loading, error, onRetry, currentGameId, record, team, leagueKey, navigate, full = false, teamHref }) {
   const listRef = useRef(null)
   const games = schedule?.games ?? NO_GAMES
   const focused = focusIndex(games, currentGameId)
@@ -67,7 +69,8 @@ function TeamSchedule({ schedule, loading, error, onRetry, currentGameId, record
     else list.scrollTop = top
   }, [games, focused, full])
 
-  const abbreviation = schedule?.team?.abbreviation ?? ''
+  const abbreviation = schedule?.team?.abbreviation ?? team?.abbreviation ?? ''
+  const logo = schedule?.team?.logo ?? team?.logo ?? null
   // Schedules for leagues out of season carry no record; the scoreboard's does
   const shownRecord = schedule?.team?.record ?? record ?? null
 
@@ -91,6 +94,7 @@ function TeamSchedule({ schedule, loading, error, onRetry, currentGameId, record
       {!full && (
         <header className="sched-head">
           <span className="sched-team">
+            {logo && <img className="sched-logo" src={logo} alt="" width="16" height="16" />}
             {teamName}
             {shownRecord && <span className="sched-record">{shownRecord}</span>}
           </span>

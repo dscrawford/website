@@ -32,6 +32,7 @@ export default function TeamRow({ team, isWinning, href, navigate }) {
           height="20"
         />
       )}
+      {team.rank && <span className="team-rank" title="Rank">{team.rank}</span>}
       <span className="team-name">
         {name}
         {team.record && <span className="team-record">{team.record}</span>}

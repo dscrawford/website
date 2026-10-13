@@ -44,6 +44,17 @@ function makeEvent(overrides = {}) {
 }
 
 describe('transformEvent', () => {
+  it('keeps a Top 25 poll rank and treats 99 (unranked) or junk as none', () => {
+    const event = makeEvent()
+    event.competitions[0].competitors[0].curatedRank = { current: 7 }
+    event.competitions[0].competitors[1].curatedRank = { current: 99 }
+    const result = transformEvent(event)
+    expect(result.homeTeam.rank).toBe(7)
+    expect(result.awayTeam.rank).toBeNull()
+    event.competitions[0].competitors[0].curatedRank = { current: 'first' }
+    expect(transformEvent(event).homeTeam.rank).toBeNull()
+  })
+
   it('transforms a well-formed event', () => {
     const result = transformEvent(makeEvent())
     expect(result).toEqual({
@@ -55,6 +66,7 @@ describe('transformEvent', () => {
         logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/hom.png',
         score: 14,
         record: '3-1',
+        rank: null,
         homeAway: 'home',
       },
       awayTeam: {
@@ -64,6 +76,7 @@ describe('transformEvent', () => {
         logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/awy.png',
         score: 10,
         record: '2-2',
+        rank: null,
         homeAway: 'away',
       },
       status: {

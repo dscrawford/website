@@ -18,12 +18,16 @@ vi.mock('../transformers/game-transformer.js', () => ({
 vi.mock('../transformers/boxscore-transformer.js', () => ({
   transformBoxScore: vi.fn(),
 }))
+vi.mock('./standings-fetcher.js', () => ({
+  getStandings: vi.fn(),
+}))
 
 import * as cache from './cache.js'
 import { fetchScoreboard, fetchSummary, fetchTeamSchedule } from './espn-client.js'
 import { transformSchedule } from '../transformers/schedule-transformer.js'
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
+import { getStandings } from './standings-fetcher.js'
 import { getLeague, getAll, getBoxScore, getTeamSchedule } from './lazy-fetcher.js'
 import { LEAGUES, DATE_CACHE_TTL_SECONDS } from '../config.js'
 
@@ -56,6 +60,43 @@ describe('lazy-fetcher', () => {
       fetchedAt: expect.any(String),
     }))
     expect(result.games).toEqual([{ id: 'g1' }])
+  })
+
+  describe('division ranks', () => {
+    const team = (id) => ({ id, abbreviation: `T${id}`, rank: null })
+    const games = [{ id: 'g1', homeTeam: team('21'), awayTeam: team('6') }, { id: 'g2', homeTeam: team('8'), awayTeam: { id: null, abbreviation: '???', rank: null } }]
+    const standings = {
+      groups: [{ name: 'NFC', groups: [{ name: 'NFC East', entries: [{ team: { id: '6' } }, { team: { id: '21' } }] }, { name: 'NFC North', entries: [{ team: { id: '8' } }] }], entries: [] }],
+    }
+
+    it("stamps each pro team with its place in its division from today's standings", async () => {
+      cache.get.mockResolvedValue(null)
+      fetchScoreboard.mockResolvedValue({ events: [] })
+      transformScoreboard.mockReturnValue(games)
+      getStandings.mockResolvedValue(standings)
+
+      const result = await getLeague('nfl')
+      expect(getStandings).toHaveBeenCalledWith('nfl')
+      expect(result.games.map((g) => [g.awayTeam.rank, g.homeTeam.rank])).toEqual([
+        [1, 2],
+        [null, 1],
+      ])
+      expect(cache.set).toHaveBeenCalledWith('nfl', expect.objectContaining({ games: result.games }))
+    })
+
+    it('leaves college boards and past days to their own ranks, and copes without standings', async () => {
+      cache.get.mockResolvedValue(null)
+      fetchScoreboard.mockResolvedValue({ events: [] })
+      transformScoreboard.mockReturnValue(games)
+      getStandings.mockResolvedValue(standings)
+
+      expect((await getLeague('ncaaf')).games).toBe(games)
+      expect((await getLeague('nfl', '2020-01-15')).games).toBe(games)
+      expect(getStandings).not.toHaveBeenCalled()
+
+      getStandings.mockResolvedValue(null)
+      expect((await getLeague('nba')).games).toBe(games)
+    })
   })
 
   it('dedups concurrent misses into one ESPN request', async () => {

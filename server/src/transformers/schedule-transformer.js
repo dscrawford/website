@@ -1,6 +1,7 @@
 // ESPN team schedule payloads are untrusted upstream: this is the trust
 // boundary before schedules reach the cache and every visitor's browser
-import { str } from './sanitize.js'
+import { str, safeLogo } from './sanitize.js'
+import { pollRank } from './poll-rank.js'
 
 const MAX_EVENTS = 250
 const STATES = new Set(['pre', 'in', 'post'])
@@ -34,15 +35,6 @@ function result(us, them, teamScore, opponentScore) {
   return 'T'
 }
 
-// ESPN's poll rank for a college team going into that game; 99 and up
-// mean unranked
-const MAX_RANK = 25
-
-function curatedRank(competitor) {
-  const rank = Number.parseInt(competitor?.curatedRank?.current, 10)
-  return Number.isFinite(rank) && rank >= 1 && rank <= MAX_RANK ? rank : null
-}
-
 function transformEvent(event, teamId) {
   if (!event || typeof event !== 'object') return null
   const competition = event.competitions?.[0]
@@ -64,6 +56,7 @@ function transformEvent(event, teamId) {
     opponent: Object.freeze({
       abbreviation: str(them.team?.abbreviation, 8) || '???',
       name: str(them.team?.displayName) || str(them.team?.name) || 'Unknown',
+      logo: safeLogo(them.team?.logos?.[0]?.href ?? them.team?.logo),
     }),
     home: us.homeAway === 'home',
     neutral: competition.neutralSite === true,
@@ -74,7 +67,7 @@ function transformEvent(event, teamId) {
     detail: str(statusType.shortDetail, 32) || str(statusType.detail, 32) || '',
     record: completed ? espnRecord(us) : null,
     opponentRecord: completed ? espnRecord(them) : null,
-    rank: curatedRank(us),
+    rank: pollRank(us),
   })
 }
 
@@ -153,6 +146,7 @@ export function transformSchedule(raw, teamId, requestedSeason) {
     team: Object.freeze({
       abbreviation: str(team.abbreviation, 8) || '???',
       name: str(team.displayName) || str(team.name) || 'Unknown',
+      logo: safeLogo(team.logo ?? team.logos?.[0]?.href),
       // Already formatted per sport by ESPN (W-L, or W-L-T when ties exist).
       // For a past season ESPN still sends the live record, so the final
       // record is the one after that season's last completed game.

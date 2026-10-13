@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { transformStandings, standingsColumns } from './standings-transformer.js'
+import { transformStandings, standingsColumns, divisionRanks } from './standings-transformer.js'
 
 const stat = (name, displayValue, value) => ({ name, displayValue, value })
 const entry = (id, abbreviation, wins, losses, seed, extra = []) => ({
@@ -69,6 +69,14 @@ describe('transformStandings', () => {
       children: [{ id: '8', name: 'SEC', standings: { entries: [entry('61', 'UGA', 6, 0, 1, [stat('pointsFor', '999', 999)])] } }],
     }
     expect(transformStandings(raw, 'ncaaf').groups[0].entries[0].stats).toEqual({ conf: '2-1', ovr: '6-0', pf: '100', pa: '90', diff: '+10', strk: 'W1' })
+  })
+
+  it('numbers every team by its place in the lowest group it sits in', () => {
+    const nfl = transformStandings(NFL, 'nfl')
+    expect(divisionRanks(nfl)).toEqual({ 2: 1, 17: 2 })
+    const flat = transformStandings({ children: [{ id: '8', name: 'SEC', standings: { entries: [entry('61', 'UGA', 6, 0, 1), entry('99', 'ALA', 5, 1, 2)] } }] }, 'ncaaf')
+    expect(divisionRanks(flat)).toEqual({ 61: 1, 99: 2 })
+    expect(divisionRanks(null)).toEqual({})
   })
 
   it('drops empty groups, teams without ids, and tolerates a missing payload', () => {

@@ -2,6 +2,7 @@
 // boundary before data reaches Redis and every visitor's browser
 import { TEAM_ID_PATTERN } from '../config.js'
 import { str, safeLogo } from './sanitize.js'
+import { pollRank } from './poll-rank.js'
 
 function teamId(value) {
   const id = str(value, 16)
@@ -18,6 +19,9 @@ function transformCompetitor(competitor) {
     logo: safeLogo(team.logo),
     score: Number.isFinite(score) ? score : 0,
     record: str(competitor.records?.[0]?.summary, 24),
+    // Poll rank for college teams; pro teams get their division place
+    // attached from the standings (lazy-fetcher.js)
+    rank: pollRank(competitor),
     homeAway:
       competitor.homeAway === 'home' || competitor.homeAway === 'away'
         ? competitor.homeAway

@@ -11,6 +11,8 @@ import { fetchScoreboard, fetchSummary, fetchTeamSchedule } from './espn-client.
 import { transformScoreboard } from '../transformers/game-transformer.js'
 import { transformBoxScore } from '../transformers/boxscore-transformer.js'
 import { transformSchedule } from '../transformers/schedule-transformer.js'
+import { divisionRanks } from '../transformers/standings-transformer.js'
+import { getStandings } from './standings-fetcher.js'
 import * as cache from './cache.js'
 
 const LEAGUE_BY_KEY = new Map(LEAGUES.map((l) => [l.key, l]))
@@ -26,6 +28,17 @@ function scoreboardParams(cfg, date) {
   return base ? `${base}&${dates}` : dates
 }
 
+// Pro teams carry their current place in the division; the standings
+// only describe today, so past boards are left without
+async function withDivisionRanks(cfg, games, date) {
+  if (!cfg.standingsLevel || (date && isPastDate(date))) return games
+  const standings = await getStandings(cfg.key)
+  if (!standings) return games
+  const ranks = divisionRanks(standings)
+  const ranked = (team) => (team.id && ranks[team.id] ? Object.freeze({ ...team, rank: ranks[team.id] }) : team)
+  return Object.freeze(games.map((game) => Object.freeze({ ...game, homeTeam: ranked(game.homeTeam), awayTeam: ranked(game.awayTeam) })))
+}
+
 async function fetchAndCache(cfg, date) {
   const raw = await fetchScoreboard(cfg.sport, cfg.league, scoreboardParams(cfg, date))
   if (!raw) return null
@@ -34,7 +47,7 @@ async function fetchAndCache(cfg, date) {
     sport: cfg.sport,
     label: cfg.label,
     ...(date ? { date } : {}),
-    games: transformScoreboard(raw, cfg.key),
+    games: await withDivisionRanks(cfg, transformScoreboard(raw, cfg.key), date),
     fetchedAt: new Date().toISOString(),
   }
   if (date) {

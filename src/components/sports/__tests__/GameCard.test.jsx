@@ -41,6 +41,17 @@ describe('GameCard box score link', () => {
     expect(screen.queryByRole('link', { name: /box score/i })).toBeNull()
   })
 
+  it("shows each team's rank between its logo and name, and nothing when it has none", () => {
+    const { container } = render(
+      <GameCard game={{ ...GAME, homeTeam: { ...GAME.homeTeam, rank: 3, logo: 'https://a.espncdn.com/x.png' }, awayTeam: { ...GAME.awayTeam, rank: null } }} navigate={vi.fn()} />
+    )
+    const ranks = container.querySelectorAll('.team-rank')
+    expect(ranks).toHaveLength(1)
+    expect(ranks[0].textContent).toBe('3')
+    expect(ranks[0].previousElementSibling.className).toBe('team-logo')
+    expect(ranks[0].nextElementSibling.className).toBe('team-name')
+  })
+
   it("shows each team's record beside its name, and nothing when it is unknown", () => {
     const withRecords = {
       ...GAME,

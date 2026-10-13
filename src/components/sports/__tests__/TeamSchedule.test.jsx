@@ -62,6 +62,23 @@ describe('TeamSchedule', () => {
     expect(within(rows[2]).getByText('T').className).toContain('sched-result--t')
   })
 
+  it('puts logos before the text: the team in the header, the opponent in each row, with the scoreboard team as fallback', () => {
+    const { container, rerender } = render(
+      <TeamSchedule schedule={{ ...SCHEDULE, team: { ...SCHEDULE.team, logo: 'https://a.espncdn.com/cle.png' }, games: [game('1', '2026-03-27T02:10Z', { opponent: { abbreviation: 'SEA', name: 'Seattle Mariners', logo: 'https://a.espncdn.com/sea.png' } })] }} loading={false} error={false} />
+    )
+    const head = container.querySelector('.sched-head .sched-logo')
+    expect(head.getAttribute('src')).toBe('https://a.espncdn.com/cle.png')
+    expect(head.nextSibling.textContent).toBe('CLE')
+    const row = container.querySelector('.sched-opp')
+    expect(row.firstElementChild.className).toBe('sched-logo')
+    expect(row.firstElementChild.getAttribute('src')).toBe('https://a.espncdn.com/sea.png')
+    expect(row.textContent).toBe('vs SEA')
+
+    rerender(<TeamSchedule schedule={null} loading={false} error team={{ abbreviation: 'CLE', logo: 'https://a.espncdn.com/cle.png' }} onRetry={() => {}} />)
+    expect(container.querySelector('.sched-head .sched-logo').getAttribute('src')).toBe('https://a.espncdn.com/cle.png')
+    expect(container.querySelector('.sched-team').textContent).toBe('CLE')
+  })
+
   it('shows the season record next to the team, preferring the schedule and falling back to the scoreboard', () => {
     const { rerender, container } = render(<TeamSchedule schedule={SCHEDULE} loading={false} error={false} onRetry={noop} currentGameId="5" record="70-71" />)
     expect(screen.getByText('71-70').className).toBe('sched-record')

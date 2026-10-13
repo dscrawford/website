@@ -23,6 +23,7 @@ export default function SchedulePanel({ leagueKey, game, navigate }) {
           onRetry={away.retry}
           currentGameId={game.id}
           record={game.awayTeam.record ?? null}
+          team={game.awayTeam}
           leagueKey={leagueKey}
           navigate={navigate}
           teamHref={teamPath(leagueKey, awayId)}
@@ -36,6 +37,7 @@ export default function SchedulePanel({ leagueKey, game, navigate }) {
           onRetry={home.retry}
           currentGameId={game.id}
           record={game.homeTeam.record ?? null}
+          team={game.homeTeam}
           leagueKey={leagueKey}
           navigate={navigate}
           teamHref={teamPath(leagueKey, homeId)}

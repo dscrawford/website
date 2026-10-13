@@ -143,6 +143,20 @@ function transformGroup(group, columns, depth) {
   })
 }
 
+// { teamId: place } across every lowest-level group: 1 for the team
+// leading its division (or conference), whatever its record
+export function divisionRanks(standings) {
+  const ranks = {}
+  const walk = (group) => {
+    for (const child of group.groups ?? []) walk(child)
+    group.entries.forEach((entry, i) => {
+      ranks[entry.team.id] = i + 1
+    })
+  }
+  for (const group of standings?.groups ?? []) walk(group)
+  return Object.freeze(ranks)
+}
+
 // Conferences, each with its divisions when ESPN sends them, each
 // division's teams in standing order (first place first)
 export function transformStandings(raw, leagueKey) {

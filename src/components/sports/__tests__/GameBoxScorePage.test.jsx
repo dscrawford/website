@@ -81,8 +81,8 @@ describe('GameBoxScorePage', () => {
   it('resolves the league from the scoreboard and renders header + box score', async () => {
     mockEndpoints()
     render(<GameBoxScorePage navigate={vi.fn()} gameId="401" />)
-    await waitFor(() => expect(screen.getByText('CHC')).toBeTruthy())
-    expect(screen.getByText('CIN')).toBeTruthy()
+    await waitFor(() => expect(screen.getAllByText('CHC').length).toBeGreaterThan(0))
+    expect(screen.getAllByText('CIN').length).toBeGreaterThan(0)
     await waitFor(() => expect(screen.getByText('D. Myers')).toBeTruthy())
     // box fetch went to the resolved league
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/games/401', expect.anything())
@@ -147,7 +147,7 @@ describe('GameBoxScorePage', () => {
     mockEndpoints()
     const navigate = vi.fn()
     render(<GameBoxScorePage navigate={navigate} gameId="401" search="?league=mlb&date=2026-08-28" />)
-    await waitFor(() => expect(screen.getByText('CHC')).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText('CHC').length).toBeGreaterThan(0))
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores?date=2026-08-28', expect.anything())
     expect(globalThis.fetch).not.toHaveBeenCalledWith('/api/scores', expect.anything())
     const back = screen.getByRole('link', { name: /scoreboard/i })
@@ -158,7 +158,8 @@ describe('GameBoxScorePage', () => {
     mockEndpoints()
     const navigate = vi.fn()
     render(<GameBoxScorePage navigate={navigate} gameId="401" />)
-    const chc = await screen.findByRole('link', { name: 'CHC' })
+    // Header team link; the schedule panel header links the team too
+    const chc = (await screen.findAllByRole('link', { name: 'CHC' })).find((a) => a.className === 'team-link')
     expect(chc.getAttribute('href')).toBe('/sports/teams/mlb/16')
     fireEvent.click(chc)
     expect(navigate).toHaveBeenCalledWith('/sports/teams/mlb/16')
