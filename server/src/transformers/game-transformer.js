@@ -1,19 +1,7 @@
 // ESPN's feed is untrusted upstream: everything here is the single trust
 // boundary before data reaches Redis and every visitor's browser
 import { TEAM_ID_PATTERN } from '../config.js'
-import { str } from './sanitize.js'
-
-const LOGO_HOSTS = new Set(['a.espncdn.com', 'a1.espncdn.com'])
-
-function safeLogo(url) {
-  if (typeof url !== 'string') return null
-  try {
-    const u = new URL(url)
-    return u.protocol === 'https:' && LOGO_HOSTS.has(u.hostname) ? u.href : null
-  } catch {
-    return null
-  }
-}
+import { str, safeLogo } from './sanitize.js'
 
 function teamId(value) {
   const id = str(value, 16)

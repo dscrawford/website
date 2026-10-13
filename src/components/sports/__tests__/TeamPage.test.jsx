@@ -87,4 +87,21 @@ describe('TeamPage', () => {
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/scores/mlb/teams/5/schedule?season=2024', expect.anything())
     expect(screen.getByRole('link', { name: /DET/ }).getAttribute('href')).toBe('/sports/301?league=mlb&date=2024-09-05')
   })
+
+  it('shows the poll rank and the place in the division as links to those tables', async () => {
+    const navigate = vi.fn()
+    globalThis.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ success: true, data: { ...SCHEDULE, team: { ...SCHEDULE.team, standing: '1st in AL Central', rank: 3 } }, error: null }),
+      })
+    )
+    render(<TeamPage navigate={navigate} leagueKey="mlb" teamId="5" />)
+    const standing = await screen.findByRole('link', { name: '1st in AL Central' })
+    expect(standing.getAttribute('href')).toBe('/sports/standings/mlb')
+    fireEvent.click(standing)
+    expect(navigate).toHaveBeenCalledWith('/sports/standings/mlb')
+    // Pro leagues have no polls, so the rank chip points at the standings too
+    expect(screen.getByRole('link', { name: '#3' }).getAttribute('href')).toBe('/sports/standings/mlb')
+  })
 })

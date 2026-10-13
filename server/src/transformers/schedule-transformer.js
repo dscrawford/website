@@ -34,6 +34,15 @@ function result(us, them, teamScore, opponentScore) {
   return 'T'
 }
 
+// ESPN's poll rank for a college team going into that game; 99 and up
+// mean unranked
+const MAX_RANK = 25
+
+function curatedRank(competitor) {
+  const rank = Number.parseInt(competitor?.curatedRank?.current, 10)
+  return Number.isFinite(rank) && rank >= 1 && rank <= MAX_RANK ? rank : null
+}
+
 function transformEvent(event, teamId) {
   if (!event || typeof event !== 'object') return null
   const competition = event.competitions?.[0]
@@ -65,7 +74,19 @@ function transformEvent(event, teamId) {
     detail: str(statusType.shortDetail, 32) || str(statusType.detail, 32) || '',
     record: completed ? espnRecord(us) : null,
     opponentRecord: completed ? espnRecord(them) : null,
+    rank: curatedRank(us),
   })
+}
+
+// The team's current poll rank: the one it carries into its next game,
+// or out of its last when the season is over
+function currentRank(games) {
+  const next = games.find((g) => g.state !== 'post')
+  if (next) return next.rank
+  for (let i = games.length - 1; i >= 0; i--) {
+    if (games[i].rank !== null) return games[i].rank
+  }
+  return null
 }
 
 // Record after each completed game, counted from the results in date
@@ -136,6 +157,10 @@ export function transformSchedule(raw, teamId, requestedSeason) {
       // For a past season ESPN still sends the live record, so the final
       // record is the one after that season's last completed game.
       record: isCurrent ? str(team.recordSummary, 24) || null : lastRecord(games),
+      // "2nd in NFC East" / "1st in SEC": the team's place in its division
+      // or conference, ESPN's wording. Live only, like recordSummary.
+      standing: isCurrent ? str(team.standingSummary, 40) || null : null,
+      rank: isCurrent ? currentRank(games) : null,
     }),
     season: seasonLabel,
     seasonYear: Number.isFinite(seasonYear) ? seasonYear : null,

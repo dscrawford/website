@@ -7,6 +7,9 @@ import TetrisSidebar from './components/TetrisSidebar.jsx'
 import SportsPage from './components/sports/SportsPage.jsx'
 import GameBoxScorePage from './components/sports/GameBoxScorePage.jsx'
 import TeamPage from './components/sports/TeamPage.jsx'
+import RankingsPage from './components/sports/RankingsPage.jsx'
+import StandingsPage from './components/sports/StandingsPage.jsx'
+import { hasPolls } from './components/sports/leagues.js'
 import SportsErrorBoundary from './components/sports/SportsErrorBoundary.jsx'
 import './App.css'
 
@@ -188,6 +191,25 @@ function App() {
     return (
       <SportsErrorBoundary>
         <TeamPage navigate={navigate} leagueKey={teamMatch[1]} teamId={teamMatch[2]} search={search} />
+      </SportsErrorBoundary>
+    )
+  }
+
+  // Pro leagues rank by division, so their rankings are their standings
+  const rankMatch = pathname.match(/^\/sports\/rankings\/([a-z]{2,8})\/?$/)
+  if (rankMatch && hasPolls(rankMatch[1])) {
+    return (
+      <SportsErrorBoundary>
+        <RankingsPage navigate={navigate} leagueKey={rankMatch[1]} search={search} />
+      </SportsErrorBoundary>
+    )
+  }
+
+  const standMatch = rankMatch ?? pathname.match(/^\/sports\/standings\/([a-z]{2,8})\/?$/)
+  if (standMatch) {
+    return (
+      <SportsErrorBoundary>
+        <StandingsPage navigate={navigate} leagueKey={standMatch[1]} search={search} />
       </SportsErrorBoundary>
     )
   }

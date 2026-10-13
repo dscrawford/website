@@ -1,0 +1,63 @@
+.stand-page {
+  max-width: 960px;
+}
+
+.stand-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  text-align: left;
+}
+
+.stand-season-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #8888aa;
+}
+
+.stand-group {
+  margin-bottom: 24px;
+}
+
+.stand-group-name {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #e0e0e0;
+}
+
+.stand-table-wrap {
+  background: rgba(20, 20, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+}
+
+.stand-table .rank-col-team {
+  min-width: 160px;
+}
+
+@media (max-width: 600px) {
+  .stand-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stand-table .rank-col-team {
+    min-width: 0;
+  }
+}

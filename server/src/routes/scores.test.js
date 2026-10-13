@@ -7,8 +7,12 @@ vi.mock('../services/lazy-fetcher.js', () => ({
   getBoxScore: vi.fn(),
   getTeamSchedule: vi.fn(),
 }))
+vi.mock('../services/rankings-fetcher.js', () => ({ getRankings: vi.fn() }))
+vi.mock('../services/standings-fetcher.js', () => ({ getStandings: vi.fn() }))
 
 import * as lazyFetcher from '../services/lazy-fetcher.js'
+import { getRankings } from '../services/rankings-fetcher.js'
+import { getStandings } from '../services/standings-fetcher.js'
 import scoresRoutes from './scores.js'
 
 async function buildApp() {
@@ -275,5 +279,91 @@ describe('GET /api/scores/:league/teams/:teamId/schedule', () => {
       data: { teamId: '13', team: null, season: null, games: [], fetchedAt: null },
       error: null,
     })
+  })
+})
+
+describe('GET /api/scores/:league/rankings', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it("returns today's polls for a college league with a short cache", async () => {
+    const data = { league: 'ncaaf', date: '2026-10-13', polls: [{ id: '1' }] }
+    getRankings.mockResolvedValue(data)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/ncaaf/rankings' })
+    expect(res.statusCode).toBe(200)
+    expect(getRankings).toHaveBeenCalledWith('ncaaf')
+    expect(res.json()).toEqual({ success: true, data, error: null })
+    expect(res.headers['cache-control']).toBe('public, max-age=300')
+    expect(res.headers['x-content-type-options']).toBe('nosniff')
+  })
+
+  it('passes ?date= through and lets a past day be held much longer', async () => {
+    getRankings.mockResolvedValue({ league: 'cbb', date: '2026-03-10', polls: [] })
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/cbb/rankings?date=2026-03-10' })
+    expect(getRankings).toHaveBeenCalledWith('cbb', '2026-03-10')
+    expect(Number(res.headers['cache-control'].match(/max-age=(\d+)/)[1])).toBeGreaterThan(300)
+  })
+
+  it('404s unknown leagues and leagues without polls, 400s a bad date, all without fetching', async () => {
+    const app = await buildApp()
+    expect((await app.inject({ method: 'GET', url: '/api/scores/cricket/rankings' })).statusCode).toBe(404)
+    const pro = await app.inject({ method: 'GET', url: '/api/scores/nfl/rankings' })
+    expect(pro.statusCode).toBe(404)
+    expect(pro.json().error).toMatch(/no polls/i)
+    const bad = await app.inject({ method: 'GET', url: '/api/scores/ncaaf/rankings?date=2026-02-30' })
+    expect(bad.statusCode).toBe(400)
+    const ancient = await app.inject({ method: 'GET', url: '/api/scores/ncaaf/rankings?date=1990-10-01' })
+    expect(ancient.statusCode).toBe(400)
+    expect(ancient.json().error).toMatch(/out of range/i)
+    expect(getRankings).not.toHaveBeenCalled()
+  })
+
+  it('answers an upstream failure with an empty, uncacheable envelope', async () => {
+    getRankings.mockResolvedValue(null)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/ncaaf/rankings?date=2025-11-29' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ success: true, data: { league: 'ncaaf', date: '2025-11-29', polls: [], fetchedAt: null }, error: null })
+    expect(res.headers['cache-control']).toBe('no-store')
+  })
+})
+
+describe('GET /api/scores/:league/standings', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('returns the current standings for any league', async () => {
+    const data = { league: 'nfl', season: { year: 2026, label: '2026' }, columns: [], groups: [] }
+    getStandings.mockResolvedValue(data)
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/scores/nfl/standings' })
+    expect(res.statusCode).toBe(200)
+    expect(getStandings).toHaveBeenCalledWith('nfl')
+    expect(res.json()).toEqual({ success: true, data, error: null })
+    expect(res.headers['cache-control']).toBe('public, max-age=300')
+  })
+
+  it('passes a valid ?season= through, holds a finished one longer, and 400s a malformed one', async () => {
+    getStandings.mockResolvedValue({ league: 'mlb', groups: [] })
+    const app = await buildApp()
+    const past = await app.inject({ method: 'GET', url: '/api/scores/mlb/standings?season=2024' })
+    expect(getStandings).toHaveBeenCalledWith('mlb', '2024')
+    expect(Number(past.headers['cache-control'].match(/max-age=(\d+)/)[1])).toBeGreaterThan(300)
+    const bad = await app.inject({ method: 'GET', url: '/api/scores/mlb/standings?season=24' })
+    expect(bad.statusCode).toBe(400)
+    expect(getStandings).toHaveBeenCalledTimes(1)
+  })
+
+  it('404s unknown leagues and answers upstream failure with an empty, uncacheable envelope', async () => {
+    const app = await buildApp()
+    expect((await app.inject({ method: 'GET', url: '/api/scores/cricket/standings' })).statusCode).toBe(404)
+    getStandings.mockResolvedValue(null)
+    const res = await app.inject({ method: 'GET', url: '/api/scores/nba/standings' })
+    expect(res.json()).toEqual({ success: true, data: { league: 'nba', season: null, columns: [], groups: [], fetchedAt: null }, error: null })
+    expect(res.headers['cache-control']).toBe('no-store')
   })
 })

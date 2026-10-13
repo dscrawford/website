@@ -109,6 +109,7 @@ export default function SportsPage({ navigate, search = window.location.search }
               label={label}
               games={games}
               navigate={navigate}
+              date={date}
             />
           )
         })}

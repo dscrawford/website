@@ -88,3 +88,30 @@
     font-size: 18px;
   }
 }
+
+/* Poll rank and place in the division/conference, each a link to the
+   table it comes from */
+.team-rank {
+  color: #ffd166;
+  text-decoration: none;
+}
+
+.team-rank:hover {
+  text-decoration: underline;
+}
+
+.team-standing {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #8888aa;
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+.team-standing:hover {
+  color: #e0e0e0;
+  border-color: rgba(255, 255, 255, 0.3);
+}

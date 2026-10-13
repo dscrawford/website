@@ -2,7 +2,7 @@ import TopNav from '../TopNav.jsx'
 import TeamSchedule from './TeamSchedule.jsx'
 import FavoriteButton from './FavoriteButton.jsx'
 import useTeamSchedule from '../../hooks/useTeamSchedule.js'
-import { LEAGUE_KEYS, leagueLabel, seasonOptions, isValidSeason, teamPath } from './leagues.js'
+import { LEAGUE_KEYS, leagueLabel, seasonOptions, isValidSeason, teamPath, rankingsPath, standingsPath } from './leagues.js'
 import './TeamPage.css'
 
 // One team's season: every game played or scheduled, each a link to its
@@ -43,9 +43,34 @@ export default function TeamPage({ navigate, leagueKey, teamId, search = window.
             <p className="game-page-league">{leagueLabel(leagueKey)}</p>
             <header className="team-head">
               <h1 className="team-title">
+                {team?.rank && (
+                  <a
+                    className="team-rank"
+                    href={rankingsPath(leagueKey)}
+                    title="Poll rank"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate?.(rankingsPath(leagueKey))
+                    }}
+                  >
+                    #{team.rank}
+                  </a>
+                )}
                 {team?.name ?? (loading ? 'Loading…' : 'Team')}
                 {team?.abbreviation && <span className="team-abbr">{team.abbreviation}</span>}
                 {team?.record && <span className="team-season-record">{team.record}</span>}
+                {team?.standing && (
+                  <a
+                    className="team-standing"
+                    href={standingsPath(leagueKey)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate?.(standingsPath(leagueKey))
+                    }}
+                  >
+                    {team.standing}
+                  </a>
+                )}
               </h1>
               <div className="team-tools">
                 <label className="team-season">

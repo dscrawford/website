@@ -18,6 +18,23 @@ export function teamPath(leagueKey, teamId) {
   return `/sports/teams/${leagueKey}/${teamId}`
 }
 
+// College leagues are ranked by polls; pro leagues by their place in the
+// division, which the standings page is
+export const POLL_LEAGUES = new Set(['ncaaf', 'cbb'])
+
+export function hasPolls(leagueKey) {
+  return POLL_LEAGUES.has(leagueKey)
+}
+
+export function rankingsPath(leagueKey, date) {
+  if (!hasPolls(leagueKey)) return standingsPath(leagueKey)
+  return `/sports/rankings/${leagueKey}${date ? `?date=${date}` : ''}`
+}
+
+export function standingsPath(leagueKey, season) {
+  return `/sports/standings/${leagueKey}${season ? `?season=${season}` : ''}`
+}
+
 // Calendar days from the URL: ISO day only, validated as a real date
 export const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 

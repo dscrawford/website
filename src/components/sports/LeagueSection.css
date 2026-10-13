@@ -2,14 +2,47 @@
   margin-bottom: 32px;
 }
 
+.league-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .league-title {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 1.5px;
   color: #e0e0e0;
-  margin: 0 0 12px;
+  margin: 0;
+}
+
+/* Favorites reuses the title on its own, without the link row */
+.fav-section > .league-title {
+  margin-bottom: 12px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.league-links {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.league-link {
+  color: #8888aa;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-decoration: none;
+}
+
+.league-link:hover {
+  color: #e0e0e0;
 }
 
 .league-empty {

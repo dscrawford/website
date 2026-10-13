@@ -1,8 +1,20 @@
 import * as lazyFetcher from '../services/lazy-fetcher.js'
+import { getRankings } from '../services/rankings-fetcher.js'
+import { getStandings } from '../services/standings-fetcher.js'
 import { isValidDate, isPastDate, isValidSeason, isPastSeason } from '../services/dates.js'
 import { LEAGUES, GAME_ID_PATTERN, HASH_ID_PATTERN, TEAM_ID_PATTERN, DATE_CACHE_TTL_SECONDS } from '../config.js'
 
 const VALID_KEYS = new Set(LEAGUES.map((l) => l.key))
+const POLL_KEYS = new Set(LEAGUES.filter((l) => l.polls).map((l) => l.key))
+
+function unknownLeague(reply) {
+  reply.code(404)
+  return {
+    success: false,
+    data: null,
+    error: `Unknown league. Valid: ${[...VALID_KEYS].join(', ')}`,
+  }
+}
 
 // Optional ?date=YYYY-MM-DD. Returns { date } (undefined when absent) or
 // { error } for anything that is not a real calendar day.
@@ -154,6 +166,57 @@ export default async function scoresRoutes(fastify) {
         data: { teamId, team: null, season: null, games: [], fetchedAt: null },
         error: null,
       }
+    }
+    const maxAge = season && isPastSeason(season) ? DATE_CACHE_TTL_SECONDS : 300
+    reply.header('Cache-Control', `public, max-age=${maxAge}`)
+    return { success: true, data, error: null }
+  })
+
+  // Polls in force on ?date= (today when absent); college leagues only
+  fastify.get('/api/scores/:league/rankings', async (request, reply) => {
+    const { league } = request.params
+    reply.header('X-Content-Type-Options', 'nosniff')
+    if (!VALID_KEYS.has(league)) return unknownLeague(reply)
+    if (!POLL_KEYS.has(league)) {
+      reply.code(404)
+      return { success: false, data: null, error: `No polls for ${league}. Rankings: ${[...POLL_KEYS].join(', ')}` }
+    }
+    const { date, error } = readDate(request.query)
+    if (error) {
+      reply.code(400)
+      return { success: false, data: null, error }
+    }
+    // Each unseen day costs several ESPN requests, so only seasons ESPN
+    // can answer for are accepted
+    if (date && !isValidSeason(date.slice(0, 4))) {
+      reply.code(400)
+      return { success: false, data: null, error: 'Date out of range for rankings' }
+    }
+
+    const data = date ? await getRankings(league, date) : await getRankings(league)
+    if (!data) {
+      reply.header('Cache-Control', 'no-store')
+      return { success: true, data: { league, date: date ?? null, polls: [], fetchedAt: null }, error: null }
+    }
+    reply.header('Cache-Control', date && isPastDate(date) ? `public, max-age=${DATE_CACHE_TTL_SECONDS}` : 'public, max-age=300')
+    return { success: true, data, error: null }
+  })
+
+  // Conference and division standings, current or for ?season=YYYY
+  fastify.get('/api/scores/:league/standings', async (request, reply) => {
+    const { league } = request.params
+    reply.header('X-Content-Type-Options', 'nosniff')
+    if (!VALID_KEYS.has(league)) return unknownLeague(reply)
+    const season = request.query?.season
+    if (season !== undefined && season !== '' && !isValidSeason(season)) {
+      reply.code(400)
+      return { success: false, data: null, error: 'Invalid season; use a four-digit year' }
+    }
+
+    const data = season ? await getStandings(league, season) : await getStandings(league)
+    if (!data) {
+      reply.header('Cache-Control', 'no-store')
+      return { success: true, data: { league, season: null, columns: [], groups: [], fetchedAt: null }, error: null }
     }
     const maxAge = season && isPastSeason(season) ? DATE_CACHE_TTL_SECONDS : 300
     reply.header('Cache-Control', `public, max-age=${maxAge}`)

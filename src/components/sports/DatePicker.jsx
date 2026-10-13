@@ -6,7 +6,7 @@ import './DatePicker.css'
 // Day stepper plus the platform's own calendar: a hidden <input type=date>
 // gives phones their native wheel/sheet and desktops the browser popup,
 // with none of the layout or touch handling a custom grid would need.
-export default function DatePicker({ value, onChange }) {
+export default function DatePicker({ value, onChange, label = 'Scoreboard date' }) {
   const inputRef = useRef(null)
   const today = todayISO()
 
@@ -25,7 +25,7 @@ export default function DatePicker({ value, onChange }) {
   }
 
   return (
-    <div className="date-picker" role="group" aria-label="Scoreboard date">
+    <div className="date-picker" role="group" aria-label={label}>
       <button type="button" className="date-step" aria-label="Previous day" onClick={() => onChange(shiftDate(value, -1))}>
         {'‹'}
       </button>
